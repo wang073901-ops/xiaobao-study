@@ -1,0 +1,19 @@
+{
+  "name": "智能学习助手",
+  "short_name": "学习助手",
+  "description": "面向 iPad 的英语学习闭环 PWA",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7fbf7",
+  "theme_color": "#f7fbf7",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,3370 @@
+{
+  "id": "english-yilin-xiaobao-pack",
+  "version": "0.7.0",
+  "title": "小宝英语平板学习包",
+  "packageKind": "tablet-learning-package",
+  "status": "partial-verified",
+  "source": "Mini 端完整资料库生成；平板只接收已核验学习包",
+  "generatedAt": "2026-07-04T14:20:54.092Z",
+  "generatedBy": {
+    "role": "Mini 资料中心",
+    "workflow": "资料核验 -> 读取平板记录 -> 计算掌握度 -> 生成学习计划 -> 下发平板学习包 -> 回收学习结果",
+    "fullMaterialLibrary": "留在 Mini 端，不随平板学习包全量下发",
+    "tabletPayload": "仅包含当前学习、近期复习、小漏洞回收所需的已核验内容",
+    "sourceLibrary": "xiaobao-mini-material-library",
+    "sourceLibraryVersion": "0.1.0",
+    "planId": "mini-plan-2026-07-05"
+  },
+  "deliveryPolicy": {
+    "tabletRole": "孩子学习端",
+    "miniRole": "资料中心、备课中心、计划中心",
+    "offlineCache": [
+      "今日学习包",
+      "最近 7 天复习包",
+      "当前单元包",
+      "小漏洞回收包"
+    ],
+    "resultReturn": "平板记录答题、小漏洞、跟读结果；联网后回传 Mini 或云端，再生成下一轮计划",
+    "aiPolicy": "固定包先保证准确和离线可用；联网时再由 Mini/云端生成变式题，生成后仍需来源约束和规则校验"
+  },
+  "subjects": [
+    "english"
+  ],
+  "grades": [
+    "3",
+    "4",
+    "5"
+  ],
+  "ocrAudit": {
+    "finishedAt": "2026-07-01",
+    "toolchain": "ocrmypdf 17.7.1 + tesseract 5.5.2 + poppler 26.06.0",
+    "books": [
+      {
+        "id": "3A",
+        "title": "三年级上册",
+        "pages": 91,
+        "status": "整本 OCR 完成，待二次识别和逐条核对后生成复习包"
+      },
+      {
+        "id": "3B",
+        "title": "三年级下册",
+        "pages": 90,
+        "status": "整本 OCR 完成，待二次识别和逐条核对后生成复习包"
+      },
+      {
+        "id": "4A",
+        "title": "四年级上册",
+        "pages": 89,
+        "status": "整本 OCR 完成，待二次识别和逐条核对后生成复习包"
+      },
+      {
+        "id": "4B",
+        "title": "四年级下册",
+        "pages": 90,
+        "status": "整本 OCR 完成，待二次识别和逐条核对后生成复习包"
+      },
+      {
+        "id": "5A",
+        "title": "五年级上册",
+        "pages": 115,
+        "status": "已核验 8/8 个单元并生成预习包"
+      }
+    ],
+    "principle": "完整课本资料库在 Mini 端管理；只有能在课本源文件中定位并经系统校验的单词、语句、语意、朗读文本，才会进入平板学习包。"
+  },
+  "studyPackage": {
+    "scope": "current-preview-with-review",
+    "cacheDays": 7,
+    "current": {
+      "kind": "preview",
+      "unitId": "5A-U1",
+      "targetMinutes": 45,
+      "timingRule": "按题量和预计耗时控制总量；孩子熟练时可提前完成，不强制学满时间。",
+      "steps": [
+        {
+          "id": "warm-up",
+          "title": "旧知热身",
+          "minutes": 8,
+          "mode": "review",
+          "goal": "三四年级复习包未正式开放，先用五上已学旧知热身",
+          "itemIds": [
+            "5A-U1-W01",
+            "5A-U1-W02",
+            "5A-U1-W03",
+            "5A-U1-W04"
+          ]
+        },
+        {
+          "id": "preview-lesson",
+          "title": "预习课",
+          "minutes": 20,
+          "mode": "lesson",
+          "goal": "课程导入、英音领读、短语、句型、课文听读",
+          "itemIds": [
+            "5A-U1-W01",
+            "5A-U1-W02",
+            "5A-U1-W03",
+            "5A-U1-W04",
+            "5A-U1-W05",
+            "5A-U1-W06",
+            "5A-U1-W07",
+            "5A-U1-W09",
+            "5A-U1-P01",
+            "5A-U1-P02",
+            "5A-U1-P03",
+            "5A-U1-P04",
+            "5A-U1-S01",
+            "5A-U1-S02",
+            "5A-U1-S03",
+            "5A-U1-S04"
+          ]
+        },
+        {
+          "id": "light-practice",
+          "title": "轻练习",
+          "minutes": 10,
+          "mode": "practice",
+          "goal": "确认刚学内容是否听懂、认得、能拼",
+          "itemIds": [
+            "5A-U1-W01",
+            "5A-U1-W02"
+          ]
+        },
+        {
+          "id": "preview-quiz",
+          "title": "小测收尾",
+          "minutes": 7,
+          "mode": "quiz",
+          "goal": "核心基础目标 100%，暂时没稳的点进入后续滚动复习",
+          "itemIds": [
+            "5A-U1-W01",
+            "5A-U1-W02",
+            "5A-U1-W03",
+            "5A-U1-W04",
+            "5A-U1-W05",
+            "5A-U1-W06",
+            "5A-U1-W07",
+            "5A-U1-W09"
+          ]
+        }
+      ],
+      "questionQueue": [
+        {
+          "id": "due-5A-U1-W01-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W01",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "习惯",
+          "answer": "habit",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W01-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W01",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "习惯",
+          "answer": "habit",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W02-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W02",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "锻炼",
+          "answer": "do exercise",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W02-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W02",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "锻炼",
+          "answer": "do exercise",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W03-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W03",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "听",
+          "answer": "listen",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W03-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W03",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "听",
+          "answer": "listen",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W04-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W04",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "仔细地，小心翼翼地",
+          "answer": "carefully",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W04-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W04",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "仔细地，小心翼翼地",
+          "answer": "carefully",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W05-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W05",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "把……整理好",
+          "answer": "put ... in order",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W05-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W05",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "把……整理好",
+          "answer": "put ... in order",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W06-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W06",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "记笔记",
+          "answer": "take notes",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W06-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W06",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "记笔记",
+          "answer": "take notes",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W07-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W07",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "整洁的，井然有序的",
+          "answer": "tidy",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W07-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W07",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "整洁的，井然有序的",
+          "answer": "tidy",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W09-listen",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W09",
+          "itemKind": "word",
+          "skill": "listen",
+          "questionType": "listen-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "从不，绝不",
+          "answer": "never",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "due-5A-U1-W09-recognition",
+          "priority": "due-review",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W09",
+          "itemKind": "word",
+          "skill": "recognition",
+          "questionType": "recognition-choice",
+          "reason": "未达 100% 掌握",
+          "prompt": "从不，绝不",
+          "answer": "never",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "preview-5A-U1-W01-spelling",
+          "priority": "preview",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W01",
+          "itemKind": "word",
+          "skill": "spelling",
+          "questionType": "spell",
+          "reason": "今日新学",
+          "prompt": "习惯",
+          "answer": "habit",
+          "source": "Word lists Unit 1"
+        },
+        {
+          "id": "preview-5A-U1-W02-spelling",
+          "priority": "preview",
+          "unitId": "5A-U1",
+          "itemId": "5A-U1-W02",
+          "itemKind": "word",
+          "skill": "spelling",
+          "questionType": "spell",
+          "reason": "今日新学",
+          "prompt": "锻炼",
+          "answer": "do exercise",
+          "source": "Word lists Unit 1"
+        }
+      ],
+      "masteryTarget": "100%"
+    },
+    "availableUnits": [
+      "5A-U1",
+      "5A-U2",
+      "5A-U3",
+      "5A-U4",
+      "5A-U5",
+      "5A-U6",
+      "5A-U7",
+      "5A-U8"
+    ],
+    "pendingReviewPackages": [
+      "3A",
+      "3B",
+      "4A",
+      "4B"
+    ],
+    "nextGenerationRule": "平板完成后回传小漏洞、稳定度、掌握度，Mini 端据此生成下一日学习包。"
+  },
+  "learningTracks": [
+    {
+      "id": "review-3-4",
+      "title": "三四年级已学总复习",
+      "purpose": "资料核对完成后，按单词、语句、课文场景、发音规则全册滚动复习",
+      "grades": [
+        "三年级",
+        "四年级"
+      ],
+      "sections": [
+        "单元训练",
+        "学期总训练",
+        "年级总复习",
+        "期中复习",
+        "期末复习",
+        "小漏洞专项"
+      ]
+    },
+    {
+      "id": "preview-5a",
+      "title": "五年级上册分部预习",
+      "purpose": "先像学校上课一样领读和理解，再做轻练习、小测和每日滚动",
+      "grades": [
+        "五年级"
+      ],
+      "sections": [
+        "主题导入",
+        "单词领读",
+        "课文听读",
+        "核心句型",
+        "听力场景",
+        "拼写听写",
+        "单元小测"
+      ]
+    }
+  ],
+  "reviewCatalog": [
+    {
+      "id": "G3A",
+      "grade": "三年级",
+      "title": "三年级上册复习",
+      "status": "二次核验中",
+      "focus": [
+        "问候与介绍",
+        "家庭成员",
+        "字母 Aa-Zz",
+        "基础课堂表达"
+      ]
+    },
+    {
+      "id": "G3B",
+      "grade": "三年级",
+      "title": "三年级下册复习",
+      "status": "二次核验中",
+      "focus": [
+        "学校物品",
+        "教室清洁",
+        "规则",
+        "水果农场动物颜色"
+      ]
+    },
+    {
+      "id": "G4A",
+      "grade": "四年级",
+      "title": "四年级上册复习",
+      "status": "二次核验中",
+      "focus": [
+        "学科与作息",
+        "一周计划",
+        "运动",
+        "天气季节服饰"
+      ]
+    },
+    {
+      "id": "G4B",
+      "grade": "四年级",
+      "title": "四年级下册复习",
+      "status": "二次核验中",
+      "focus": [
+        "朋友互助",
+        "校园帮助",
+        "道路安全",
+        "点餐职业家务厨房"
+      ]
+    },
+    {
+      "id": "G5A",
+      "grade": "五年级",
+      "title": "五年级上册预习",
+      "status": "已核验 8/8 个单元",
+      "focus": [
+        "Good habits",
+        "I feel good",
+        "Hobbies",
+        "Safety first",
+        "At weekends",
+        "Getting along with others",
+        "Shopping smart",
+        "We love festivals"
+      ]
+    }
+  ],
+  "reviewUnits": [],
+  "units": [
+    {
+      "id": "5A-U1",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 1 Good habits",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "目录",
+          "Word lists Unit 1",
+          "Story time",
+          "Grammar time",
+          "Wrap-up time"
+        ],
+        "note": "英文词句逐条定位到课本；中文词义按课本词汇表核对；课文句义按原句语境翻译。"
+      },
+      "focus": [
+        "日常好习惯",
+        "频率副词",
+        "第三人称单数",
+        "听读课文",
+        "短语和句型运用"
+      ],
+      "previewLesson": {
+        "theme": "好习惯",
+        "goal": "理解 Yang Ling 和 Wang Bing 的好习惯与需要改进的习惯",
+        "scene": "本单元围绕日常好习惯展开，重点表达早起、刷牙、整理物品、记笔记、锻炼、晚睡等生活习惯。",
+        "teacherSteps": [
+          "主题导入",
+          "单词领读",
+          "短语句型领读",
+          "课文逐句听读",
+          "轻练习",
+          "预习小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U1-P01",
+          "en": "do chores at home",
+          "zh": "在家做家务",
+          "source": "Story time p.13",
+          "core": true
+        },
+        {
+          "id": "5A-U1-P02",
+          "en": "listen to teachers carefully",
+          "zh": "认真听老师讲课",
+          "source": "Grammar time p.16",
+          "core": true
+        },
+        {
+          "id": "5A-U1-P03",
+          "en": "put school things in order",
+          "zh": "把学习用品整理好",
+          "source": "Grammar time p.16",
+          "core": true
+        },
+        {
+          "id": "5A-U1-P04",
+          "en": "takes notes in class",
+          "zh": "在课堂上记笔记",
+          "source": "Story time p.14",
+          "core": true
+        },
+        {
+          "id": "5A-U1-P05",
+          "en": "does exercise every day",
+          "zh": "每天锻炼",
+          "source": "Story time p.14",
+          "core": true
+        },
+        {
+          "id": "5A-U1-P06",
+          "en": "read in bed",
+          "zh": "在床上读书",
+          "source": "Story time p.13",
+          "core": true
+        },
+        {
+          "id": "5A-U1-P07",
+          "en": "go to bed late",
+          "zh": "晚睡",
+          "source": "Story time p.14",
+          "core": true
+        },
+        {
+          "id": "5A-U1-P08",
+          "en": "bad for his health",
+          "zh": "对他的健康不好",
+          "source": "Story time p.14",
+          "core": true
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U1-ST01",
+          "en": "Yang Ling has many good habits.",
+          "zh": "杨玲有许多好习惯。",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-ST02",
+          "en": "She does chores at home every day.",
+          "zh": "她每天在家做家务。",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-ST03",
+          "en": "In class, she listens to her teachers carefully.",
+          "zh": "在课堂上，她认真听老师讲课。",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-ST04",
+          "en": "She does well at school.",
+          "zh": "她在学校表现很好。",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-ST05",
+          "en": "But she often reads in bed.",
+          "zh": "但是她经常在床上读书。",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-ST06",
+          "en": "It is bad for her eyes.",
+          "zh": "这对她的眼睛不好。",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-ST07",
+          "en": "Wang Bing has many good habits too.",
+          "zh": "王兵也有许多好习惯。",
+          "source": "Story time p.14"
+        },
+        {
+          "id": "5A-U1-ST08",
+          "en": "He takes notes in class.",
+          "zh": "他在课堂上记笔记。",
+          "source": "Story time p.14"
+        },
+        {
+          "id": "5A-U1-ST09",
+          "en": "He puts his school things in order every evening.",
+          "zh": "他每天晚上把学习用品整理好。",
+          "source": "Story time p.14"
+        },
+        {
+          "id": "5A-U1-ST10",
+          "en": "He does exercise every day.",
+          "zh": "他每天锻炼。",
+          "source": "Story time p.14"
+        },
+        {
+          "id": "5A-U1-ST11",
+          "en": "But Wang Bing often goes to bed late.",
+          "zh": "但是王兵经常晚睡。",
+          "source": "Story time p.14"
+        },
+        {
+          "id": "5A-U1-ST12",
+          "en": "That is not a good habit.",
+          "zh": "那不是一个好习惯。",
+          "source": "Story time p.14"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U1-W01",
+          "en": "habit",
+          "zh": "习惯",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W02",
+          "en": "do exercise",
+          "zh": "锻炼",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W03",
+          "en": "listen",
+          "zh": "听",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W04",
+          "en": "carefully",
+          "zh": "仔细地，小心翼翼地",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W05",
+          "en": "put ... in order",
+          "zh": "把……整理好",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W06",
+          "en": "take notes",
+          "zh": "记笔记",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W07",
+          "en": "tidy",
+          "zh": "整洁的，井然有序的",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W08",
+          "en": "wait a minute",
+          "zh": "等一会儿，稍等一下",
+          "source": "Word lists Unit 1",
+          "core": false
+        },
+        {
+          "id": "5A-U1-W09",
+          "en": "never",
+          "zh": "从不，绝不",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W10",
+          "en": "in class",
+          "zh": "在课堂上",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W11",
+          "en": "do well",
+          "zh": "成功",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W12",
+          "en": "very much",
+          "zh": "非常",
+          "source": "Word lists Unit 1",
+          "core": false
+        },
+        {
+          "id": "5A-U1-W13",
+          "en": "a lot of",
+          "zh": "许多",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W14",
+          "en": "often",
+          "zh": "时常，常常",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W15",
+          "en": "in bed",
+          "zh": "在床上",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W16",
+          "en": "bad",
+          "zh": "坏的",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W17",
+          "en": "healthy",
+          "zh": "健康的，健壮的",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W18",
+          "en": "late",
+          "zh": "迟，晚",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W19",
+          "en": "health",
+          "zh": "健康",
+          "source": "Word lists Unit 1",
+          "core": true
+        },
+        {
+          "id": "5A-U1-W20",
+          "en": "card",
+          "zh": "卡片",
+          "source": "Word lists Unit 1",
+          "core": false
+        },
+        {
+          "id": "5A-U1-W21",
+          "en": "It's your turn.",
+          "zh": "轮到你了。",
+          "source": "Word lists Unit 1",
+          "core": false
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U1-S01",
+          "en": "Yang Ling has many good habits.",
+          "zh": "杨玲有许多好习惯。",
+          "source": "Story time p.13",
+          "pattern": "has many good habits",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S02",
+          "en": "She does chores at home every day.",
+          "zh": "她每天在家做家务。",
+          "source": "Story time p.13",
+          "pattern": "does ... every day",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S03",
+          "en": "In class, she listens to her teachers carefully.",
+          "zh": "在课堂上，她认真听老师讲课。",
+          "source": "Story time p.13",
+          "pattern": "listens to ... carefully",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S04",
+          "en": "She does well at school.",
+          "zh": "她在学校表现很好。",
+          "source": "Story time p.13",
+          "pattern": "does well at school",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S05",
+          "en": "Yang Ling likes reading very much.",
+          "zh": "杨玲非常喜欢读书。",
+          "source": "Story time p.13",
+          "pattern": "likes doing",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S06",
+          "en": "She reads a lot of books.",
+          "zh": "她读很多书。",
+          "source": "Story time p.13",
+          "pattern": "reads a lot of ...",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S07",
+          "en": "But she often reads in bed.",
+          "zh": "但是她经常在床上读书。",
+          "source": "Story time p.13",
+          "pattern": "often does",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S08",
+          "en": "It is bad for her eyes.",
+          "zh": "这对她的眼睛不好。",
+          "source": "Story time p.13",
+          "pattern": "be bad for",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S09",
+          "en": "Wang Bing has many good habits too.",
+          "zh": "王兵也有许多好习惯。",
+          "source": "Story time p.14",
+          "pattern": "has many good habits too",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S10",
+          "en": "He takes notes in class.",
+          "zh": "他在课堂上记笔记。",
+          "source": "Story time p.14",
+          "pattern": "takes notes",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S11",
+          "en": "He puts his school things in order every evening.",
+          "zh": "他每天晚上把学习用品整理好。",
+          "source": "Story time p.14",
+          "pattern": "puts ... in order",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S12",
+          "en": "He likes sport.",
+          "zh": "他喜欢运动。",
+          "source": "Story time p.14",
+          "pattern": "likes ...",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S13",
+          "en": "He does exercise every day.",
+          "zh": "他每天锻炼。",
+          "source": "Story time p.14",
+          "pattern": "does exercise",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S14",
+          "en": "He is strong and healthy.",
+          "zh": "他强壮又健康。",
+          "source": "Story time p.14",
+          "pattern": "be strong and healthy",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S15",
+          "en": "But Wang Bing often goes to bed late.",
+          "zh": "但是王兵经常晚睡。",
+          "source": "Story time p.14",
+          "pattern": "often goes to bed late",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S16",
+          "en": "That is not a good habit.",
+          "zh": "那不是一个好习惯。",
+          "source": "Story time p.14",
+          "pattern": "not a good habit",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S17",
+          "en": "It is bad for his health.",
+          "zh": "这对他的健康不好。",
+          "source": "Story time p.14",
+          "pattern": "be bad for",
+          "core": true
+        },
+        {
+          "id": "5A-U1-S18",
+          "en": "What good habits should Yang Ling and Wang Bing have?",
+          "zh": "杨玲和王兵应该有什么好习惯？",
+          "source": "Contents p.9",
+          "pattern": "What ... should ... have?",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U1-Q01",
+          "type": "fill",
+          "prompt": "She ___ chores at home every day.",
+          "answer": "does",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-Q02",
+          "type": "fill",
+          "prompt": "In class, she listens to her teachers ___.",
+          "answer": "carefully",
+          "source": "Story time p.13"
+        },
+        {
+          "id": "5A-U1-Q03",
+          "type": "fill",
+          "prompt": "He ___ his school things in order every evening.",
+          "answer": "puts",
+          "source": "Story time p.14"
+        },
+        {
+          "id": "5A-U1-Q04",
+          "type": "fill",
+          "prompt": "But Wang Bing often goes to bed ___.",
+          "answer": "late",
+          "source": "Story time p.14"
+        }
+      ]
+    },
+    {
+      "id": "5A-U2",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 2 I feel good",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "Word lists Unit 2",
+          "Story time"
+        ],
+        "note": "英文词句逐条定位到五上文本源；中文词义按课本词汇表核对。"
+      },
+      "focus": [
+        "情绪表达",
+        "Helen Keller 故事",
+        "cannot / can",
+        "努力与坚持"
+      ],
+      "previewLesson": {
+        "theme": "I feel good",
+        "goal": "理解 Helen Keller 从难过到开心的变化，并会表达情绪和能力",
+        "scene": "本单元通过 Helen Keller 的故事学习 worried, excited, hard, fast, give up 等表达。",
+        "teacherSteps": [
+          "故事导入",
+          "单词领读",
+          "课文逐句听读",
+          "情绪表达",
+          "轻练习",
+          "小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U2-P01",
+          "en": "feel good",
+          "zh": "感到愉快（或有信心等）",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-P02",
+          "en": "give up",
+          "zh": "放弃",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-P03",
+          "en": "learns fast",
+          "zh": "学得快",
+          "source": "Story time p.26",
+          "core": true
+        },
+        {
+          "id": "5A-U2-P04",
+          "en": "tries hard",
+          "zh": "努力尝试",
+          "source": "Story time p.26",
+          "core": true
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U2-ST01",
+          "en": "Helen Keller cannot see or hear.",
+          "zh": "海伦·凯勒看不见也听不见。",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-ST02",
+          "en": "She cannot talk with others.",
+          "zh": "她不能和别人交谈。",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-ST03",
+          "en": "Sometimes she feels angry and sad.",
+          "zh": "有时她感到生气和难过。",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-ST04",
+          "en": "Her parents are worried.",
+          "zh": "她的父母很担心。",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-ST05",
+          "en": "Then Anne Sullivan comes to the family and teaches Helen.",
+          "zh": "后来安妮·沙利文来到这个家庭并教海伦。",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-ST06",
+          "en": "She writes some words on Helen’s hand.",
+          "zh": "她在海伦的手上写一些单词。",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-ST07",
+          "en": "But Helen does not understand.",
+          "zh": "但是海伦不明白。",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-ST08",
+          "en": "Miss Sullivan does not give up.",
+          "zh": "沙利文老师没有放弃。",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST09",
+          "en": "One day, she puts water on Helen’s hand.",
+          "zh": "一天，她把水放到海伦的手上。",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST10",
+          "en": "Then she writes W-A-T-E-R on her other hand.",
+          "zh": "然后她在海伦另一只手上写 W-A-T-E-R。",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST11",
+          "en": "Helen understands!",
+          "zh": "海伦明白了！",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST12",
+          "en": "She is excited.",
+          "zh": "她很激动。",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST13",
+          "en": "Words are names for things!",
+          "zh": "词就是事物的名称！",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST14",
+          "en": "Helen tries hard and learns fast.",
+          "zh": "海伦努力尝试，学得很快。",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST15",
+          "en": "She also learns to speak!",
+          "zh": "她还学会了说话！",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-ST16",
+          "en": "She feels very happy.",
+          "zh": "她感到非常开心。",
+          "source": "Story time p.26"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U2-W01",
+          "en": "feel good",
+          "zh": "感到愉快（或有信心等）",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W02",
+          "en": "worried",
+          "zh": "担心的，担忧的",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W03",
+          "en": "excited",
+          "zh": "激动的，兴奋的",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W04",
+          "en": "hard",
+          "zh": "努力地",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W05",
+          "en": "hear",
+          "zh": "听见，听到",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W06",
+          "en": "sometimes",
+          "zh": "有时，间或",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W07",
+          "en": "then",
+          "zh": "然后，后来",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W08",
+          "en": "teach",
+          "zh": "教授，教",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W09",
+          "en": "write",
+          "zh": "书写，写字",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W10",
+          "en": "word",
+          "zh": "单词，字",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W11",
+          "en": "hand",
+          "zh": "手",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W12",
+          "en": "understand",
+          "zh": "懂，理解",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W13",
+          "en": "give up",
+          "zh": "放弃",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W14",
+          "en": "fast",
+          "zh": "快，快速，迅速",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W15",
+          "en": "speak",
+          "zh": "说话",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W16",
+          "en": "study",
+          "zh": "学习",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W17",
+          "en": "know",
+          "zh": "知道，了解",
+          "source": "Word lists Unit 2",
+          "core": true
+        },
+        {
+          "id": "5A-U2-W18",
+          "en": "when",
+          "zh": "当……时",
+          "source": "Word lists Unit 2",
+          "core": true
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U2-S01",
+          "en": "Helen Keller cannot see or hear.",
+          "zh": "海伦·凯勒看不见也听不见。",
+          "source": "Story time p.25",
+          "pattern": "cannot ... or ...",
+          "core": true
+        },
+        {
+          "id": "5A-U2-S02",
+          "en": "Sometimes she feels angry and sad.",
+          "zh": "有时她感到生气和难过。",
+          "source": "Story time p.25",
+          "pattern": "feels ...",
+          "core": true
+        },
+        {
+          "id": "5A-U2-S03",
+          "en": "Miss Sullivan does not give up.",
+          "zh": "沙利文老师没有放弃。",
+          "source": "Story time p.26",
+          "pattern": "does not ...",
+          "core": true
+        },
+        {
+          "id": "5A-U2-S04",
+          "en": "Helen tries hard and learns fast.",
+          "zh": "海伦努力尝试，学得很快。",
+          "source": "Story time p.26",
+          "pattern": "tries ... and learns ...",
+          "core": true
+        },
+        {
+          "id": "5A-U2-S05",
+          "en": "She feels very happy.",
+          "zh": "她感到非常开心。",
+          "source": "Story time p.26",
+          "pattern": "feels very ...",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U2-Q01",
+          "type": "fill",
+          "prompt": "Helen Keller cannot see or ___.",
+          "answer": "hear",
+          "source": "Story time p.25"
+        },
+        {
+          "id": "5A-U2-Q02",
+          "type": "fill",
+          "prompt": "Miss Sullivan does not give ___.",
+          "answer": "up",
+          "source": "Story time p.26"
+        },
+        {
+          "id": "5A-U2-Q03",
+          "type": "fill",
+          "prompt": "Helen tries hard and learns ___.",
+          "answer": "fast",
+          "source": "Story time p.26"
+        }
+      ]
+    },
+    {
+      "id": "5A-U3",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 3 Hobbies",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "Word lists Unit 3",
+          "Story time"
+        ],
+        "note": "英文词句逐条定位到五上文本源；中文词义按课本词汇表核对。"
+      },
+      "focus": [
+        "兴趣爱好",
+        "like doing",
+        "club 表达",
+        "兴趣带来的好处"
+      ],
+      "previewLesson": {
+        "theme": "Hobbies",
+        "goal": "会说自己的兴趣爱好，并理解不同社团的意义",
+        "scene": "本单元围绕学校社团和兴趣爱好展开，重点练习 likes doing 和 wants to join。",
+        "teacherSteps": [
+          "主题导入",
+          "单词领读",
+          "课文听读",
+          "句型替换",
+          "轻练习",
+          "小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U3-P01",
+          "en": "paper-cutting",
+          "zh": "剪纸",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-P02",
+          "en": "over there",
+          "zh": "在那里",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-P03",
+          "en": "a lot",
+          "zh": "大量",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-P04",
+          "en": "learn about Chinese culture",
+          "zh": "了解中国文化",
+          "source": "Story time p.37",
+          "core": true
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U3-ST01",
+          "en": "I like paper-cutting.",
+          "zh": "我喜欢剪纸。",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST02",
+          "en": "Do you want to join it?",
+          "zh": "你想加入它吗？",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST03",
+          "en": "I’m not good at paper-cutting, but I like trying new things.",
+          "zh": "我不擅长剪纸，但我喜欢尝试新事物。",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST04",
+          "en": "I also want to learn about Chinese culture.",
+          "zh": "我也想了解中国文化。",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST05",
+          "en": "I like dancing.",
+          "zh": "我喜欢跳舞。",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST06",
+          "en": "It keeps me healthy.",
+          "zh": "它让我保持健康。",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST07",
+          "en": "She likes singing.",
+          "zh": "她喜欢唱歌。",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST08",
+          "en": "It makes her happy.",
+          "zh": "它让她开心。",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-ST09",
+          "en": "He likes playing ping-pong.",
+          "zh": "他喜欢打乒乓球。",
+          "source": "Story time p.38"
+        },
+        {
+          "id": "5A-U3-ST10",
+          "en": "He wants to join the Ping-pong Club.",
+          "zh": "他想加入乒乓球社团。",
+          "source": "Story time p.38"
+        },
+        {
+          "id": "5A-U3-ST11",
+          "en": "He can make new friends there.",
+          "zh": "他可以在那里交新朋友。",
+          "source": "Story time p.38"
+        },
+        {
+          "id": "5A-U3-ST12",
+          "en": "She learns a lot from reading.",
+          "zh": "她从阅读中学到很多。",
+          "source": "Story time p.38"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U3-W01",
+          "en": "hobby",
+          "zh": "业余爱好",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-W02",
+          "en": "dance",
+          "zh": "舞蹈",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-W03",
+          "en": "paper-cutting",
+          "zh": "剪纸",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-W04",
+          "en": "gift",
+          "zh": "礼物",
+          "source": "Word lists Unit 3",
+          "core": false
+        },
+        {
+          "id": "5A-U3-W05",
+          "en": "her",
+          "zh": "她",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-W06",
+          "en": "make",
+          "zh": "使变得，使成为",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-W07",
+          "en": "join",
+          "zh": "成为……的一员，参加",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-W08",
+          "en": "over there",
+          "zh": "在那里",
+          "source": "Word lists Unit 3",
+          "core": true
+        },
+        {
+          "id": "5A-U3-W09",
+          "en": "a lot",
+          "zh": "大量",
+          "source": "Word lists Unit 3",
+          "core": true
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U3-S01",
+          "en": "I like paper-cutting.",
+          "zh": "我喜欢剪纸。",
+          "source": "Story time p.37",
+          "pattern": "like doing",
+          "core": true
+        },
+        {
+          "id": "5A-U3-S02",
+          "en": "Do you want to join it?",
+          "zh": "你想加入它吗？",
+          "source": "Story time p.37",
+          "pattern": "Do you want to ...?",
+          "core": true
+        },
+        {
+          "id": "5A-U3-S03",
+          "en": "I like dancing.",
+          "zh": "我喜欢跳舞。",
+          "source": "Story time p.37",
+          "pattern": "like doing",
+          "core": true
+        },
+        {
+          "id": "5A-U3-S04",
+          "en": "It keeps me healthy.",
+          "zh": "它让我保持健康。",
+          "source": "Story time p.37",
+          "pattern": "keeps me ...",
+          "core": true
+        },
+        {
+          "id": "5A-U3-S05",
+          "en": "It makes her happy.",
+          "zh": "它让她开心。",
+          "source": "Story time p.37",
+          "pattern": "makes her ...",
+          "core": true
+        },
+        {
+          "id": "5A-U3-S06",
+          "en": "He likes playing ping-pong.",
+          "zh": "他喜欢打乒乓球。",
+          "source": "Story time p.38",
+          "pattern": "likes doing",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U3-Q01",
+          "type": "fill",
+          "prompt": "I like ___.",
+          "answer": "paper-cutting",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-Q02",
+          "type": "fill",
+          "prompt": "It keeps me ___.",
+          "answer": "healthy",
+          "source": "Story time p.37"
+        },
+        {
+          "id": "5A-U3-Q03",
+          "type": "fill",
+          "prompt": "He likes playing ___.",
+          "answer": "ping-pong",
+          "source": "Story time p.38"
+        }
+      ]
+    },
+    {
+      "id": "5A-U4",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 4 Safety first",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "Word lists Unit 4",
+          "Story time"
+        ],
+        "note": "英文词句逐条定位到五上文本源；中文词义按课本词汇表核对。"
+      },
+      "focus": [
+        "校园安全",
+        "should / shouldn’t",
+        "安全行为判断",
+        "PE class 表达"
+      ],
+      "previewLesson": {
+        "theme": "Safety first",
+        "goal": "会用 should / shouldn’t 描述安全和不安全的行为",
+        "scene": "本单元围绕校园和体育课安全，学习 run on the stairs, keep to the right, warm up 等表达。",
+        "teacherSteps": [
+          "安全场景导入",
+          "单词领读",
+          "课文听读",
+          "should 句型",
+          "轻练习",
+          "小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U4-P01",
+          "en": "warm up",
+          "zh": "做准备活动，热身",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-P02",
+          "en": "keep to the right",
+          "zh": "靠右边走",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-P03",
+          "en": "out of the way",
+          "zh": "不再挡路，不再碍事",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-P04",
+          "en": "right now",
+          "zh": "立即，马上",
+          "source": "Word lists Unit 4",
+          "core": true
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U4-ST01",
+          "en": "It’s time for PE!",
+          "zh": "到上体育课的时间了！",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST02",
+          "en": "Let’s go to the sports ground!",
+          "zh": "我们去运动场吧！",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST03",
+          "en": "You shouldn’t run on the stairs.",
+          "zh": "你不应该在楼梯上跑。",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST04",
+          "en": "It’s not safe.",
+          "zh": "这不安全。",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST05",
+          "en": "We should also keep to the right.",
+          "zh": "我们也应该靠右走。",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST06",
+          "en": "And we shouldn’t jump from the stairs.",
+          "zh": "而且我们不应该从楼梯上跳下来。",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST07",
+          "en": "How can we keep safe in PE class?",
+          "zh": "我们怎样才能在体育课上保持安全？",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST08",
+          "en": "We should warm up first.",
+          "zh": "我们应该先热身。",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST09",
+          "en": "We shouldn’t push others.",
+          "zh": "我们不应该推别人。",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-ST10",
+          "en": "You may hurt him.",
+          "zh": "你可能会弄伤他。",
+          "source": "Story time p.50"
+        },
+        {
+          "id": "5A-U4-ST13",
+          "en": "Let’s walk slowly.",
+          "zh": "我们慢慢走吧。",
+          "source": "Story time p.50"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U4-W01",
+          "en": "pull",
+          "zh": "拉，拽，扯",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W02",
+          "en": "push",
+          "zh": "推",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W03",
+          "en": "warm up",
+          "zh": "做准备活动，热身",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W04",
+          "en": "jump",
+          "zh": "跳，跳跃",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W05",
+          "en": "should",
+          "zh": "应该，应当",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W06",
+          "en": "hurt",
+          "zh": "感到疼痛；（使）疼痛，受伤",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W07",
+          "en": "listen",
+          "zh": "听从",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W08",
+          "en": "stairs",
+          "zh": "楼梯",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W09",
+          "en": "keep to the right",
+          "zh": "靠右边走",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W10",
+          "en": "from",
+          "zh": "从",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W11",
+          "en": "may",
+          "zh": "也许，可能",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W12",
+          "en": "out of the way",
+          "zh": "不再挡路，不再碍事",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W13",
+          "en": "right now",
+          "zh": "立即，马上",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W14",
+          "en": "walk",
+          "zh": "走，行走",
+          "source": "Word lists Unit 4",
+          "core": true
+        },
+        {
+          "id": "5A-U4-W15",
+          "en": "slowly",
+          "zh": "慢速地，缓慢地",
+          "source": "Word lists Unit 4",
+          "core": true
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U4-S01",
+          "en": "You shouldn’t run on the stairs.",
+          "zh": "你不应该在楼梯上跑。",
+          "source": "Story time p.49",
+          "pattern": "shouldn’t ...",
+          "core": true
+        },
+        {
+          "id": "5A-U4-S02",
+          "en": "We should also keep to the right.",
+          "zh": "我们也应该靠右走。",
+          "source": "Story time p.49",
+          "pattern": "should ...",
+          "core": true
+        },
+        {
+          "id": "5A-U4-S03",
+          "en": "We should warm up first.",
+          "zh": "我们应该先热身。",
+          "source": "Story time p.49",
+          "pattern": "should ... first",
+          "core": true
+        },
+        {
+          "id": "5A-U4-S04",
+          "en": "We shouldn’t push others.",
+          "zh": "我们不应该推别人。",
+          "source": "Story time p.49",
+          "pattern": "shouldn’t ...",
+          "core": true
+        },
+        {
+          "id": "5A-U4-S05",
+          "en": "You may hurt him.",
+          "zh": "你可能会弄伤他。",
+          "source": "Story time p.50",
+          "pattern": "may ...",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U4-Q01",
+          "type": "fill",
+          "prompt": "You shouldn’t run on the ___.",
+          "answer": "stairs",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-Q02",
+          "type": "fill",
+          "prompt": "We should warm up ___.",
+          "answer": "first",
+          "source": "Story time p.49"
+        },
+        {
+          "id": "5A-U4-Q03",
+          "type": "fill",
+          "prompt": "Let’s walk ___.",
+          "answer": "slowly",
+          "source": "Story time p.50"
+        }
+      ]
+    },
+    {
+      "id": "5A-U5",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 5 At weekends",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "Word lists Unit 5",
+          "Story time"
+        ],
+        "note": "英文词句逐条定位到五上文本源；中文词义按课本词汇表核对。"
+      },
+      "focus": [
+        "周末活动",
+        "频率副词",
+        "What do/does ... do at weekends?",
+        "家庭活动"
+      ],
+      "previewLesson": {
+        "theme": "At weekends",
+        "goal": "会询问并描述周末活动",
+        "scene": "本单元学习 usually, sometimes, often, always 等频率表达，以及周末活动短语。",
+        "teacherSteps": [
+          "周末话题导入",
+          "单词领读",
+          "课文听读",
+          "频率副词",
+          "轻练习",
+          "小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U5-P01",
+          "en": "play the piano",
+          "zh": "弹钢琴",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-P02",
+          "en": "chat on the internet",
+          "zh": "在网上聊天",
+          "source": "Story time p.63",
+          "core": true
+        },
+        {
+          "id": "5A-U5-P03",
+          "en": "go climbing",
+          "zh": "去爬山",
+          "source": "Story time p.63",
+          "core": true
+        },
+        {
+          "id": "5A-U5-P04",
+          "en": "fly a kite",
+          "zh": "放风筝",
+          "source": "Story time p.64",
+          "core": true
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U5-ST01",
+          "en": "Today is Friday!",
+          "zh": "今天是星期五！",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-ST02",
+          "en": "What do you do at weekends, Yang Ling?",
+          "zh": "杨玲，你周末做什么？",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-ST03",
+          "en": "I usually visit my grandparents.",
+          "zh": "我通常看望我的祖父母/外祖父母。",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-ST04",
+          "en": "I help them water the plants.",
+          "zh": "我帮他们给植物浇水。",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-ST05",
+          "en": "Sometimes I go climbing with my parents.",
+          "zh": "有时我和父母去爬山。",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-ST06",
+          "en": "I also like spending time with my family.",
+          "zh": "我也喜欢和家人共度时光。",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-ST07",
+          "en": "I usually chat with them on the internet at weekends.",
+          "zh": "我通常在周末和他们在网上聊天。",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-ST08",
+          "en": "What else do you do at weekends?",
+          "zh": "你周末还做什么？",
+          "source": "Story time p.64"
+        },
+        {
+          "id": "5A-U5-ST09",
+          "en": "I often play football with Liu Tao.",
+          "zh": "我经常和刘涛踢足球。",
+          "source": "Story time p.64"
+        },
+        {
+          "id": "5A-U5-ST10",
+          "en": "Sometimes I fly a kite in the park.",
+          "zh": "有时我在公园放风筝。",
+          "source": "Story time p.64"
+        },
+        {
+          "id": "5A-U5-ST11",
+          "en": "She always plays the piano.",
+          "zh": "她总是弹钢琴。",
+          "source": "Story time p.64"
+        },
+        {
+          "id": "5A-U5-ST12",
+          "en": "Sometimes she goes to the cinema with her friends.",
+          "zh": "有时她和朋友去看电影。",
+          "source": "Story time p.64"
+        },
+        {
+          "id": "5A-U5-ST13",
+          "en": "We all have fun at weekends.",
+          "zh": "我们周末都玩得很开心。",
+          "source": "Story time p.64"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U5-W01",
+          "en": "watch",
+          "zh": "观看",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W02",
+          "en": "TV",
+          "zh": "电视，电视机",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W03",
+          "en": "visit",
+          "zh": "拜访，看望",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W04",
+          "en": "grandparent",
+          "zh": "（外）祖父，（外）祖母",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W05",
+          "en": "play the piano",
+          "zh": "弹钢琴",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W06",
+          "en": "chat",
+          "zh": "闲聊，聊天",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W07",
+          "en": "internet",
+          "zh": "互联网",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W08",
+          "en": "always",
+          "zh": "总是，每次都是",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W09",
+          "en": "usually",
+          "zh": "通常地，一般地",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W10",
+          "en": "plant",
+          "zh": "植物，花草",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W11",
+          "en": "spend",
+          "zh": "花（时间），度过",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W12",
+          "en": "live",
+          "zh": "住，居住",
+          "source": "Word lists Unit 5",
+          "core": true
+        },
+        {
+          "id": "5A-U5-W13",
+          "en": "wonderful",
+          "zh": "精彩的，绝妙的",
+          "source": "Word lists Unit 5",
+          "core": true
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U5-S01",
+          "en": "What do you do at weekends, Yang Ling?",
+          "zh": "杨玲，你周末做什么？",
+          "source": "Story time p.63",
+          "pattern": "What do you do ...?",
+          "core": true
+        },
+        {
+          "id": "5A-U5-S02",
+          "en": "I usually visit my grandparents.",
+          "zh": "我通常看望我的祖父母/外祖父母。",
+          "source": "Story time p.63",
+          "pattern": "usually do",
+          "core": true
+        },
+        {
+          "id": "5A-U5-S03",
+          "en": "Sometimes I go climbing with my parents.",
+          "zh": "有时我和父母去爬山。",
+          "source": "Story time p.63",
+          "pattern": "Sometimes ...",
+          "core": true
+        },
+        {
+          "id": "5A-U5-S04",
+          "en": "I often play football with Liu Tao.",
+          "zh": "我经常和刘涛踢足球。",
+          "source": "Story time p.64",
+          "pattern": "often do",
+          "core": true
+        },
+        {
+          "id": "5A-U5-S05",
+          "en": "She always plays the piano.",
+          "zh": "她总是弹钢琴。",
+          "source": "Story time p.64",
+          "pattern": "always does",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U5-Q01",
+          "type": "fill",
+          "prompt": "I usually visit my ___.",
+          "answer": "grandparents",
+          "source": "Story time p.63"
+        },
+        {
+          "id": "5A-U5-Q02",
+          "type": "fill",
+          "prompt": "Sometimes I fly a kite in the ___.",
+          "answer": "park",
+          "source": "Story time p.64"
+        },
+        {
+          "id": "5A-U5-Q03",
+          "type": "fill",
+          "prompt": "She always plays the ___.",
+          "answer": "piano",
+          "source": "Story time p.64"
+        }
+      ]
+    },
+    {
+      "id": "5A-U6",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 6 Getting along with others",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "Word lists Unit 6",
+          "Story time"
+        ],
+        "note": "英文词句逐条定位到五上文本源；中文词义按课本词汇表核对。"
+      },
+      "focus": [
+        "与人相处",
+        "六尺巷故事",
+        "should / why not",
+        "邻里关系"
+      ],
+      "previewLesson": {
+        "theme": "Getting along with others",
+        "goal": "理解六尺巷故事，会表达建议和友好相处",
+        "scene": "本单元通过六尺巷故事学习 neighbour, space, letter, advice, friendly 等表达。",
+        "teacherSteps": [
+          "故事导入",
+          "单词领读",
+          "课文听读",
+          "建议句型",
+          "轻练习",
+          "小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U6-P01",
+          "en": "get along with",
+          "zh": "与……和睦相处",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-P02",
+          "en": "next to",
+          "zh": "紧邻，在……近旁",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-P03",
+          "en": "close to",
+          "zh": "接近",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-P04",
+          "en": "do your homework",
+          "zh": "做家庭作业",
+          "source": "Word lists Unit 6",
+          "core": false
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U6-ST01",
+          "en": "The Wu family live next to the Zhang family.",
+          "zh": "吴家住在张家隔壁。",
+          "source": "Story time p.75"
+        },
+        {
+          "id": "5A-U6-ST02",
+          "en": "The Wu family want to take the space between their houses.",
+          "zh": "吴家想占用两家房子之间的空地。",
+          "source": "Story time p.75"
+        },
+        {
+          "id": "5A-U6-ST03",
+          "en": "Your house is too close to our house!",
+          "zh": "你们的房子离我们家太近了！",
+          "source": "Story time p.75"
+        },
+        {
+          "id": "5A-U6-ST04",
+          "en": "The Zhang family feel very angry.",
+          "zh": "张家人感到很生气。",
+          "source": "Story time p.75"
+        },
+        {
+          "id": "5A-U6-ST05",
+          "en": "Why don’t we write a letter to Zhang Ying?",
+          "zh": "我们为什么不给张英写封信呢？",
+          "source": "Story time p.75"
+        },
+        {
+          "id": "5A-U6-ST06",
+          "en": "He can give good advice.",
+          "zh": "他可以给出好建议。",
+          "source": "Story time p.75"
+        },
+        {
+          "id": "5A-U6-ST07",
+          "en": "Zhang Ying writes a letter back.",
+          "zh": "张英回了一封信。",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-ST08",
+          "en": "A wall is not important.",
+          "zh": "一堵墙并不重要。",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-ST09",
+          "en": "We should be friendly.",
+          "zh": "我们应该友好相处。",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-ST10",
+          "en": "Why not move our wall back three chi ?",
+          "zh": "为什么不把我们的墙后移三尺呢？",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-ST11",
+          "en": "You can use the space.",
+          "zh": "你们可以使用这块空地。",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-ST12",
+          "en": "You’re so kind.",
+          "zh": "你们真友善。",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-ST13",
+          "en": "The Wu family and the Zhang family become good neighbours.",
+          "zh": "吴家和张家成了好邻居。",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-ST14",
+          "en": "This is the story of Liu Chi Xiang.",
+          "zh": "这就是六尺巷的故事。",
+          "source": "Story time p.76"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U6-W01",
+          "en": "get along with",
+          "zh": "与……和睦相处",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W02",
+          "en": "between",
+          "zh": "在……中间，介于……之间",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W03",
+          "en": "wall",
+          "zh": "围墙；墙，壁",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W04",
+          "en": "neighbour",
+          "zh": "邻居，邻人",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W05",
+          "en": "next to",
+          "zh": "紧邻，在……近旁",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W06",
+          "en": "space",
+          "zh": "空地，空间",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W07",
+          "en": "their",
+          "zh": "他们的，她们的，它们的",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W08",
+          "en": "too",
+          "zh": "太，过于",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W09",
+          "en": "close to",
+          "zh": "接近",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W10",
+          "en": "use",
+          "zh": "使用，利用",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W11",
+          "en": "letter",
+          "zh": "信，函",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W12",
+          "en": "advice",
+          "zh": "建议",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W13",
+          "en": "important",
+          "zh": "重要的",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W14",
+          "en": "friendly",
+          "zh": "友好的，友爱的",
+          "source": "Word lists Unit 6",
+          "core": true
+        },
+        {
+          "id": "5A-U6-W15",
+          "en": "favourite",
+          "zh": "特别喜爱的",
+          "source": "Word lists Unit 6",
+          "core": false
+        },
+        {
+          "id": "5A-U6-W16",
+          "en": "problem",
+          "zh": "问题，困难",
+          "source": "Word lists Unit 6",
+          "core": true
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U6-S01",
+          "en": "The Wu family live next to the Zhang family.",
+          "zh": "吴家住在张家隔壁。",
+          "source": "Story time p.75",
+          "pattern": "live next to ...",
+          "core": true
+        },
+        {
+          "id": "5A-U6-S02",
+          "en": "The Zhang family feel very angry.",
+          "zh": "张家人感到很生气。",
+          "source": "Story time p.75",
+          "pattern": "feel very ...",
+          "core": true
+        },
+        {
+          "id": "5A-U6-S03",
+          "en": "Why don’t we write a letter to Zhang Ying?",
+          "zh": "我们为什么不给张英写封信呢？",
+          "source": "Story time p.75",
+          "pattern": "Why don’t we ...?",
+          "core": true
+        },
+        {
+          "id": "5A-U6-S04",
+          "en": "We should be friendly.",
+          "zh": "我们应该友好相处。",
+          "source": "Story time p.76",
+          "pattern": "should be ...",
+          "core": true
+        },
+        {
+          "id": "5A-U6-S05",
+          "en": "Why not move our wall back three chi ?",
+          "zh": "为什么不把我们的墙后移三尺呢？",
+          "source": "Story time p.76",
+          "pattern": "Why not ...?",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U6-Q01",
+          "type": "fill",
+          "prompt": "The Wu family live next to the Zhang ___.",
+          "answer": "family",
+          "source": "Story time p.75"
+        },
+        {
+          "id": "5A-U6-Q02",
+          "type": "fill",
+          "prompt": "We should be ___.",
+          "answer": "friendly",
+          "source": "Story time p.76"
+        },
+        {
+          "id": "5A-U6-Q03",
+          "type": "fill",
+          "prompt": "A wall is not ___.",
+          "answer": "important",
+          "source": "Story time p.76"
+        }
+      ]
+    },
+    {
+      "id": "5A-U7",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 7 Shopping smart",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "Word lists Unit 7",
+          "Story time"
+        ],
+        "note": "英文词句逐条定位到五上文本源；中文词义按课本词汇表核对。"
+      },
+      "focus": [
+        "购物表达",
+        "价格问答",
+        "购物清单",
+        "理性消费"
+      ],
+      "previewLesson": {
+        "theme": "Shopping smart",
+        "goal": "会用购物常用语询问、试穿、询价和做选择",
+        "scene": "本单元通过 Yang Ling 购物学习 Can I help you?, How much is it?, try it on 等表达。",
+        "teacherSteps": [
+          "购物场景导入",
+          "单词领读",
+          "课文听读",
+          "价格表达",
+          "轻练习",
+          "小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U7-P01",
+          "en": "How about ...?",
+          "zh": "……怎么样？",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-P02",
+          "en": "pocket money",
+          "zh": "零花钱",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-P03",
+          "en": "try on",
+          "zh": "试穿",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-P04",
+          "en": "shopping list",
+          "zh": "购物清单",
+          "source": "Story time p.87",
+          "core": true
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U7-ST01",
+          "en": "Yang Ling and her parents are shopping.",
+          "zh": "杨玲和她的父母正在购物。",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST02",
+          "en": "Yang Ling has a shopping list and wants to buy things with her pocket money.",
+          "zh": "杨玲有一张购物清单，想用自己的零花钱买东西。",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST03",
+          "en": "Can I help you?",
+          "zh": "需要帮忙吗？",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST04",
+          "en": "I’d like a sweater.",
+          "zh": "我想要一件毛衣。",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST05",
+          "en": "Would you like this yellow one?",
+          "zh": "你想要这件黄色的吗？",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST06",
+          "en": "How about this pink sweater?",
+          "zh": "这件粉色毛衣怎么样？",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST07",
+          "en": "Can I try it on?",
+          "zh": "我可以试穿它吗？",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST08",
+          "en": "It looks good.",
+          "zh": "它看起来不错。",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST09",
+          "en": "How much is it?",
+          "zh": "它多少钱？",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST10",
+          "en": "It’s sixty-eight yuan.",
+          "zh": "它六十八元。",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST11",
+          "en": "Let’s take it.",
+          "zh": "我们买下它吧。",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST12",
+          "en": "They’re not on my shopping list.",
+          "zh": "它们不在我的购物清单上。",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-ST13",
+          "en": "These socks look nice.",
+          "zh": "这些短袜看起来不错。",
+          "source": "Story time p.88"
+        },
+        {
+          "id": "5A-U7-ST14",
+          "en": "They’re twelve yuan a pair.",
+          "zh": "它们十二元一双。",
+          "source": "Story time p.88"
+        },
+        {
+          "id": "5A-U7-ST15",
+          "en": "I don’t need four pairs.",
+          "zh": "我不需要四双。",
+          "source": "Story time p.88"
+        },
+        {
+          "id": "5A-U7-ST16",
+          "en": "Two pairs, please.",
+          "zh": "请给我两双。",
+          "source": "Story time p.88"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U7-W01",
+          "en": "shop",
+          "zh": "在商店购物",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W02",
+          "en": "smart",
+          "zh": "明智且高效地",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W03",
+          "en": "shoe",
+          "zh": "鞋",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W04",
+          "en": "sweater",
+          "zh": "毛衣，线衣",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W05",
+          "en": "sock",
+          "zh": "短袜",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W06",
+          "en": "need",
+          "zh": "需要，必需",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W07",
+          "en": "yuan",
+          "zh": "元（中国货币单位）",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W08",
+          "en": "How about ...?",
+          "zh": "……怎么样？",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W09",
+          "en": "show",
+          "zh": "给……看，展示",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W10",
+          "en": "list",
+          "zh": "清单",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W11",
+          "en": "pocket money",
+          "zh": "零花钱",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W12",
+          "en": "try on",
+          "zh": "试穿",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W13",
+          "en": "sixty-eight",
+          "zh": "六十八",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W14",
+          "en": "take",
+          "zh": "选中，买下",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W15",
+          "en": "pair",
+          "zh": "一双，一对",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W16",
+          "en": "forty",
+          "zh": "四十",
+          "source": "Word lists Unit 7",
+          "core": true
+        },
+        {
+          "id": "5A-U7-W17",
+          "en": "twenty-four",
+          "zh": "二十四",
+          "source": "Word lists Unit 7",
+          "core": true
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U7-S01",
+          "en": "Can I help you?",
+          "zh": "需要帮忙吗？",
+          "source": "Story time p.87",
+          "pattern": "Can I ...?",
+          "core": true
+        },
+        {
+          "id": "5A-U7-S02",
+          "en": "I’d like a sweater.",
+          "zh": "我想要一件毛衣。",
+          "source": "Story time p.87",
+          "pattern": "I’d like ...",
+          "core": true
+        },
+        {
+          "id": "5A-U7-S03",
+          "en": "Can I try it on?",
+          "zh": "我可以试穿它吗？",
+          "source": "Story time p.87",
+          "pattern": "Can I ...?",
+          "core": true
+        },
+        {
+          "id": "5A-U7-S04",
+          "en": "How much is it?",
+          "zh": "它多少钱？",
+          "source": "Story time p.87",
+          "pattern": "How much is ...?",
+          "core": true
+        },
+        {
+          "id": "5A-U7-S05",
+          "en": "They’re twelve yuan a pair.",
+          "zh": "它们十二元一双。",
+          "source": "Story time p.88",
+          "pattern": "They’re ... yuan ...",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U7-Q01",
+          "type": "fill",
+          "prompt": "I’d like a ___.",
+          "answer": "sweater",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-Q02",
+          "type": "fill",
+          "prompt": "Can I try it ___?",
+          "answer": "on",
+          "source": "Story time p.87"
+        },
+        {
+          "id": "5A-U7-Q03",
+          "type": "fill",
+          "prompt": "They’re twelve yuan a ___.",
+          "answer": "pair",
+          "source": "Story time p.88"
+        }
+      ]
+    },
+    {
+      "id": "5A-U8",
+      "grade": "五年级",
+      "semester": "上册",
+      "track": "preview",
+      "title": "Unit 8 We love festivals",
+      "verified": true,
+      "verification": {
+        "status": "verified",
+        "source": "26秋 五上.pdf / /private/tmp/smart-study-ocr/g5a.txt",
+        "checked": [
+          "Word lists Unit 8",
+          "Story time"
+        ],
+        "note": "英文词句逐条定位到五上文本源；中文词义按课本词汇表核对。"
+      },
+      "focus": [
+        "节日文化",
+        "春节",
+        "圣诞节",
+        "月份和庆祝活动"
+      ],
+      "previewLesson": {
+        "theme": "We love festivals",
+        "goal": "会介绍春节和圣诞节的时间及庆祝方式",
+        "scene": "本单元学习 festival, January, February, December, red packet, lion dance 等节日表达。",
+        "teacherSteps": [
+          "节日导入",
+          "单词领读",
+          "课文听读",
+          "中西节日比较",
+          "轻练习",
+          "小测"
+        ]
+      },
+      "phrases": [
+        {
+          "id": "5A-U8-P01",
+          "en": "red packet",
+          "zh": "红包",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-P02",
+          "en": "lion dance",
+          "zh": "舞狮",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-P03",
+          "en": "have a good time",
+          "zh": "过得愉快",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-P04",
+          "en": "Chinese New Year",
+          "zh": "中国新年",
+          "source": "Story time p.99",
+          "core": true
+        }
+      ],
+      "story": [
+        {
+          "id": "5A-U8-ST01",
+          "en": "The Spring Festival, or Chinese New Year, is very important for Chinese people.",
+          "zh": "春节，也就是中国新年，对中国人来说非常重要。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST02",
+          "en": "It is in January or February.",
+          "zh": "它在一月或二月。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST03",
+          "en": "Before the festival, my family and I clean our house and put fu on our doors.",
+          "zh": "节日前，我和家人打扫房子，并把福字贴在门上。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST04",
+          "en": "On Chinese New Year’s Eve, we have a big dinner at home.",
+          "zh": "在除夕夜，我们在家吃一顿丰盛的晚餐。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST05",
+          "en": "We eat jiaozi .",
+          "zh": "我们吃饺子。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST06",
+          "en": "Su Yang and I get red packets from our parents and grandparents.",
+          "zh": "苏洋和我从父母、祖父母/外祖父母那里收到红包。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST07",
+          "en": "On Chinese New Year’s Day, we watch a lion dance.",
+          "zh": "在大年初一，我们观看舞狮。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST08",
+          "en": "We all have a good time at this festival.",
+          "zh": "我们在这个节日都过得很开心。",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-ST09",
+          "en": "Christmas is a big festival in the UK.",
+          "zh": "圣诞节是英国的一个大节日。",
+          "source": "Story time p.100"
+        },
+        {
+          "id": "5A-U8-ST10",
+          "en": "It is in December.",
+          "zh": "它在十二月。",
+          "source": "Story time p.100"
+        },
+        {
+          "id": "5A-U8-ST11",
+          "en": "Before Christmas, we buy gifts for our family and friends.",
+          "zh": "圣诞节前，我们给家人和朋友买礼物。",
+          "source": "Story time p.100"
+        },
+        {
+          "id": "5A-U8-ST12",
+          "en": "We also buy a Christmas tree.",
+          "zh": "我们还买一棵圣诞树。",
+          "source": "Story time p.100"
+        },
+        {
+          "id": "5A-U8-ST13",
+          "en": "On Christmas Eve, Helen and I hang stockings on our beds.",
+          "zh": "在平安夜，海伦和我把圣诞袜挂在床上。",
+          "source": "Story time p.100"
+        },
+        {
+          "id": "5A-U8-ST14",
+          "en": "We get up early and open our gifts.",
+          "zh": "我们早早起床并打开礼物。",
+          "source": "Story time p.100"
+        },
+        {
+          "id": "5A-U8-ST15",
+          "en": "Christmas is fun!",
+          "zh": "圣诞节很有趣！",
+          "source": "Story time p.100"
+        }
+      ],
+      "words": [
+        {
+          "id": "5A-U8-W01",
+          "en": "festival",
+          "zh": "节日",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W02",
+          "en": "about",
+          "zh": "关于，对于",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W03",
+          "en": "or",
+          "zh": "或者",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W04",
+          "en": "January",
+          "zh": "一月",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W05",
+          "en": "February",
+          "zh": "二月",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W06",
+          "en": "before",
+          "zh": "在……以前",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W07",
+          "en": "door",
+          "zh": "门",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W08",
+          "en": "red packet",
+          "zh": "红包",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W09",
+          "en": "lion dance",
+          "zh": "舞狮",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W10",
+          "en": "have a good time",
+          "zh": "过得愉快",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W11",
+          "en": "December",
+          "zh": "十二月",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W12",
+          "en": "hang",
+          "zh": "挂",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W13",
+          "en": "stocking",
+          "zh": "圣诞袜",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W14",
+          "en": "open",
+          "zh": "打开，撕开",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W15",
+          "en": "turkey",
+          "zh": "火鸡肉；火鸡",
+          "source": "Word lists Unit 8",
+          "core": true
+        },
+        {
+          "id": "5A-U8-W16",
+          "en": "mooncake",
+          "zh": "月饼",
+          "source": "Word lists Unit 8",
+          "core": false
+        },
+        {
+          "id": "5A-U8-W17",
+          "en": "China",
+          "zh": "中国",
+          "source": "Word lists Unit 8",
+          "core": false
+        }
+      ],
+      "sentences": [
+        {
+          "id": "5A-U8-S01",
+          "en": "The Spring Festival, or Chinese New Year, is very important for Chinese people.",
+          "zh": "春节，也就是中国新年，对中国人来说非常重要。",
+          "source": "Story time p.99",
+          "pattern": "... is very important for ...",
+          "core": true
+        },
+        {
+          "id": "5A-U8-S02",
+          "en": "It is in January or February.",
+          "zh": "它在一月或二月。",
+          "source": "Story time p.99",
+          "pattern": "It is in ...",
+          "core": true
+        },
+        {
+          "id": "5A-U8-S03",
+          "en": "We all have a good time at this festival.",
+          "zh": "我们在这个节日都过得很开心。",
+          "source": "Story time p.99",
+          "pattern": "have a good time",
+          "core": true
+        },
+        {
+          "id": "5A-U8-S04",
+          "en": "Christmas is a big festival in the UK.",
+          "zh": "圣诞节是英国的一个大节日。",
+          "source": "Story time p.100",
+          "pattern": "... is a big festival ...",
+          "core": true
+        },
+        {
+          "id": "5A-U8-S05",
+          "en": "It is in December.",
+          "zh": "它在十二月。",
+          "source": "Story time p.100",
+          "pattern": "It is in ...",
+          "core": true
+        }
+      ],
+      "schoolPractice": [
+        {
+          "id": "5A-U8-Q01",
+          "type": "fill",
+          "prompt": "It is in January or ___.",
+          "answer": "February",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-Q02",
+          "type": "fill",
+          "prompt": "We watch a lion ___.",
+          "answer": "dance",
+          "source": "Story time p.99"
+        },
+        {
+          "id": "5A-U8-Q03",
+          "type": "fill",
+          "prompt": "It is in ___.",
+          "answer": "December",
+          "source": "Story time p.100"
+        }
+      ]
+    }
+  ],
+  "diagnostic": [
+    {
+      "unitId": "5A-U1",
+      "title": "Unit 1 Good habits",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 43,
+      "pendingItems": 43,
+      "status": "needs-work"
+    },
+    {
+      "unitId": "5A-U2",
+      "title": "Unit 2 I feel good",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 27,
+      "pendingItems": 27,
+      "status": "needs-work"
+    },
+    {
+      "unitId": "5A-U3",
+      "title": "Unit 3 Hobbies",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 18,
+      "pendingItems": 18,
+      "status": "needs-work"
+    },
+    {
+      "unitId": "5A-U4",
+      "title": "Unit 4 Safety first",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 24,
+      "pendingItems": 24,
+      "status": "needs-work"
+    },
+    {
+      "unitId": "5A-U5",
+      "title": "Unit 5 At weekends",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 22,
+      "pendingItems": 22,
+      "status": "needs-work"
+    },
+    {
+      "unitId": "5A-U6",
+      "title": "Unit 6 Getting along with others",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 23,
+      "pendingItems": 23,
+      "status": "needs-work"
+    },
+    {
+      "unitId": "5A-U7",
+      "title": "Unit 7 Shopping smart",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 26,
+      "pendingItems": 26,
+      "status": "needs-work"
+    },
+    {
+      "unitId": "5A-U8",
+      "title": "Unit 8 We love festivals",
+      "masteryPercent": 0,
+      "masteredItems": 0,
+      "totalItems": 24,
+      "pendingItems": 24,
+      "status": "needs-work"
+    }
+  ],
+  "miniPlan": {
+    "id": "mini-plan-2026-07-05",
+    "generatedForDate": "2026-07-05",
+    "generationReason": [
+      "选择 Unit 1 Good habits，因为它是当前第一个未达到 100% 掌握的已核验单元。",
+      "当前核心点 0/43 已稳定，仍有 43 个待滚动。",
+      "安排预习日：先学后练，再小测。"
+    ],
+    "tabletRecordSummary": {
+      "records": 0,
+      "learningRecords": 0,
+      "activeWeaknesses": 0,
+      "itemStats": 0,
+      "recentStability": 100,
+      "unitProgress": {}
+    }
+  }
+}
