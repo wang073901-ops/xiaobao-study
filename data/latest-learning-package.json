@@ -1,0 +1,32 @@
+{
+  "kind": "latest-learning-package",
+  "schemaVersion": "latest-learning-package-manifest-v1",
+  "generatedAt": "2026-07-05T15:08:15.266Z",
+  "package": {
+    "id": "xiaobao-english-learning-pack-2026-07-05-2308",
+    "title": "小宝英语平板学习包",
+    "version": "xiaobao-english-learning-pack-2026-07-05-2308",
+    "file": "data/packages/xiaobao-english-learning-pack-2026-07-05-2308.json",
+    "activeFile": "data/english-5a-demo.json",
+    "status": "verified",
+    "schemaVersion": "xiaobao-learning-package-v1",
+    "contentHash": "624306e2b79e5dce6e83062a8ff915a8475070dce8f3488155feb11a8d2589a0",
+    "generatedAt": "2026-07-05T15:08:15.049689+00:00"
+  },
+  "previousPackage": null,
+  "rollback": {
+    "available": false
+  },
+  "controller": {
+    "trigger": "learning-plan-handoff",
+    "handoff": "handoff/learning-plan-handoff.md",
+    "appCodeVersionModified": false,
+    "uploadStatus": "not-tested"
+  },
+  "privacy": {
+    "includesRawLearningLogs": false,
+    "includesReportsDirectory": false,
+    "githubPagesPolicy": "Only publish learning package and manifest; never publish data/reports."
+  },
+  "contentHash": "f4f2fac8afe84d8fa00c26b2752410c20b63dd184355d359283fc31da4ea38e5"
+}

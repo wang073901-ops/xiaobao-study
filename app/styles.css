@@ -524,6 +524,11 @@ h3 {
   border-color: rgba(37, 111, 91, 0.35);
 }
 
+.lesson-row.is-playing {
+  border-color: rgba(37, 111, 91, 0.45);
+  background: #f7fbf7;
+}
+
 .question-word {
   margin-bottom: 10px;
   font-size: 54px;
@@ -561,6 +566,25 @@ h3 {
 .choice-button.wrong {
   border-color: #e2ad5e;
   background: #fff6e6;
+}
+
+.choice-button:disabled {
+  opacity: 0.88;
+}
+
+.answer-feedback {
+  min-height: 32px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.answer-feedback.ok {
+  color: var(--green-dark);
+}
+
+.answer-feedback.warn {
+  color: #9f5f1c;
 }
 
 .text-input {
@@ -680,9 +704,22 @@ select {
   flex: 1 1 190px;
 }
 
+.field-label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .setting-stack {
   display: grid;
   gap: 14px;
+}
+
+.student-settings {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }
 
 .setting-line {

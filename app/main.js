@@ -1,7 +1,13 @@
-const APP_VERSION = "0.7.0";
+const APP_VERSION = "1.0.0";
 const APP_BASE_URL = new URL("../", import.meta.url);
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
+const LATEST_PACKAGE_URL = new URL("data/latest-learning-package.json", APP_BASE_URL).href;
 const STORAGE_KEY = "smart-study-state-v1";
+const SPEECH_PROFILE_VERSION = "female-en-gb-slow-v1";
+const DEFAULT_SPEECH_RATE = 0.58;
+const SLOW_SPEECH_RATE = 0.46;
+const FEMALE_BRITISH_VOICES = /serena|susan|martha|kate|shelley|stephanie|sarah|victoria|emma|amy|ava|female/i;
+const MALE_VOICES = /daniel|arthur|oliver|george|tom|male/i;
 
 const routes = {
   home: { title: "小宝今天的英语课堂", eyebrow: "今日课堂" },
@@ -9,13 +15,18 @@ const routes = {
   mistakes: { title: "小漏洞回收站", eyebrow: "温和复习" },
   speaking: { title: "英音跟读", eyebrow: "听标准音，再开口" },
   parent: { title: "家长与 Mini", eyebrow: "备课、同步、核验" },
-  lesson: { title: "五上预习课", eyebrow: "像学校一样先学后练" },
+  lesson: { title: "五上学习课", eyebrow: "像学校一样先学后练" },
   practice: { title: "练习中", eyebrow: "轻练习" }
 };
 
 const defaultState = {
   activeRoute: "home",
-  packageVersion: "0.7.0",
+  packageVersion: "1.0.0",
+  learningPackageVersion: "",
+  contentHash: "",
+  cachedLearningPackage: null,
+  updateLog: [],
+  studentName: "",
   completed: 0,
   streak: 0,
   records: [],
@@ -23,6 +34,11 @@ const defaultState = {
   itemStats: {},
   sessionSummaries: [],
   importedPackages: [],
+  learnedItems: {},
+  lessonProgress: {
+    "5A-U1": { chunkIndex: 0 }
+  },
+  selectedReview: null,
   unitProgress: {
     "5A-U1": "previewing"
   },
@@ -31,9 +47,10 @@ const defaultState = {
     term: "上册",
     mode: "daily",
     speechProvider: "demo",
-    speechRate: 0.64,
+    speechRate: DEFAULT_SPEECH_RATE,
     speechVoiceURI: "",
-    speechAccent: "en-GB"
+    speechAccent: "en-GB",
+    speechProfileVersion: SPEECH_PROFILE_VERSION
   }
 };
 
@@ -66,7 +83,7 @@ const toast = document.querySelector("#toast");
 init();
 
 async function init() {
-  data = await fetch(PACKAGE_URL).then((response) => response.json());
+  data = await loadLearningPackage();
   const firstVerifiedUnit = getFirstVerifiedUnit();
   currentSpeakingItem = firstVerifiedUnit?.words?.[0] || {
     id: "material-pending",
@@ -78,6 +95,103 @@ async function init() {
   setupSpeechVoices();
   renderAll();
   navigate("home");
+}
+
+async function loadLearningPackage() {
+  const bundledPackage = await fetchJson(PACKAGE_URL);
+  const cachedPackage = validateLearningPackage(state.cachedLearningPackage).ok ? state.cachedLearningPackage : null;
+  let activePackage = cachedPackage || bundledPackage;
+
+  syncActivePackageMeta(activePackage);
+
+  const updateResult = await checkForLearningPackageUpdate(activePackage);
+  if (updateResult.package) {
+    activePackage = updateResult.package;
+    syncActivePackageMeta(activePackage);
+  }
+  saveState();
+  return activePackage;
+}
+
+async function checkForLearningPackageUpdate(localPackage) {
+  const checkedAt = new Date().toISOString();
+  const localVersion = getPackageVersion(localPackage);
+  const localHash = state.contentHash || (await safeContentHash(localPackage));
+  if (localHash) state.contentHash = localHash;
+  try {
+    const manifest = await fetchJson(LATEST_PACKAGE_URL, { cache: "no-store" });
+    const manifestValidation = validateLatestManifest(manifest);
+    if (!manifestValidation.ok) {
+      appendUpdateLog({
+        checkedAt,
+        onlineVersion: manifest?.learningPackageVersion || manifest?.version || "",
+        localVersion,
+        success: false,
+        reason: manifestValidation.reason
+      });
+      return { package: null };
+    }
+
+    if (manifest.learningPackageVersion === localVersion && manifest.contentHash === localHash) {
+      appendUpdateLog({
+        checkedAt,
+        onlineVersion: manifest.learningPackageVersion,
+        localVersion,
+        success: true,
+        reason: "已是最新学习包"
+      });
+      return { package: null };
+    }
+
+    const nextPackage = await fetchJson(new URL(manifest.packageUrl, LATEST_PACKAGE_URL).href, { cache: "no-store" });
+    const packageValidation = await validateDownloadedPackage(nextPackage, manifest);
+    if (!packageValidation.ok) {
+      appendUpdateLog({
+        checkedAt,
+        onlineVersion: manifest.learningPackageVersion,
+        localVersion,
+        success: false,
+        reason: packageValidation.reason
+      });
+      return { package: null };
+    }
+
+    state.cachedLearningPackage = nextPackage;
+    state.learningPackageVersion = manifest.learningPackageVersion;
+    state.contentHash = manifest.contentHash;
+    appendUpdateLog({
+      checkedAt,
+      onlineVersion: manifest.learningPackageVersion,
+      localVersion,
+      success: true,
+      reason: "更新成功"
+    });
+    return { package: nextPackage };
+  } catch (error) {
+    appendUpdateLog({
+      checkedAt,
+      onlineVersion: "",
+      localVersion,
+      success: false,
+      reason: `检查失败：${error.message || "网络不可用"}`
+    });
+    return { package: null };
+  }
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+function syncActivePackageMeta(packageData) {
+  state.learningPackageVersion = getPackageVersion(packageData);
+  if (packageData?.contentHash) state.contentHash = packageData.contentHash;
+}
+
+function appendUpdateLog(entry) {
+  state.updateLog = [entry, ...(state.updateLog || [])].slice(0, 30);
 }
 
 function setupEvents() {
@@ -133,11 +247,237 @@ function getFirstVerifiedUnit() {
 }
 
 function getVerifiedReviewUnits() {
-  return (data?.reviewUnits || []).filter((unit) => unit.verified === true);
+  return (data?.reviewUnits || []).filter((unit) => unit.verified === true && unit.verification?.fullBookVerified === true);
+}
+
+function getAllPracticeUnits() {
+  return [...getVerifiedReviewUnits(), ...getVerifiedUnits()];
 }
 
 function getNextPreviewUnit() {
   return getVerifiedUnits().find((unit) => state.unitProgress[unit.id] !== "mastered") || null;
+}
+
+function getCurrentStudyUnit() {
+  return getNextPreviewUnit() || getFirstVerifiedUnit();
+}
+
+function getUnitById(unitId) {
+  return getAllPracticeUnits().find((unit) => unit.id === unitId) || null;
+}
+
+function getLessonProgress(unitId) {
+  if (!state.lessonProgress[unitId]) state.lessonProgress[unitId] = { chunkIndex: 0 };
+  return state.lessonProgress[unitId];
+}
+
+function getCurrentLearningChunk(unit) {
+  const chunks = getLearningChunks(unit);
+  const progress = getLessonProgress(unit.id);
+  return chunks[Math.min(progress.chunkIndex || 0, chunks.length - 1)] || chunks[0];
+}
+
+function getLearningChunks(unit) {
+  if (!unit) return [];
+  if (unit.id === "5A-U1") return buildUnit1Chunks(unit);
+  return buildGenericChunks(unit);
+}
+
+function buildUnit1Chunks(unit) {
+  return [
+    {
+      id: "5A-U1-C1",
+      title: "好习惯主题和 Yang Ling 开头",
+      focus: "先听懂好习惯主题，学 6 个重点词和开头故事句。",
+      wordIds: ["5A-U1-W01", "5A-U1-W03", "5A-U1-W04", "5A-U1-W10", "5A-U1-W11", "5A-U1-W12"],
+      phraseIds: ["5A-U1-P01", "5A-U1-P02"],
+      sentenceIds: ["5A-U1-S01", "5A-U1-S02", "5A-U1-S03", "5A-U1-S04"],
+      storyIds: ["5A-U1-ST01", "5A-U1-ST02", "5A-U1-ST03", "5A-U1-ST04"]
+    },
+    {
+      id: "5A-U1-C2",
+      title: "Yang Ling 的阅读习惯",
+      focus: "把读书、睡前阅读、保护眼睛这些句子读顺。",
+      wordIds: ["5A-U1-W13", "5A-U1-W14", "5A-U1-W15", "5A-U1-W16", "5A-U1-W17"],
+      phraseIds: ["5A-U1-P06", "5A-U1-P08"],
+      sentenceIds: ["5A-U1-S05", "5A-U1-S06", "5A-U1-S07", "5A-U1-S08"],
+      storyIds: ["5A-U1-ST05", "5A-U1-ST06"]
+    },
+    {
+      id: "5A-U1-C3",
+      title: "Wang Bing 的好习惯",
+      focus: "学习记笔记、整理物品、按时完成作业等表达。",
+      wordIds: ["5A-U1-W02", "5A-U1-W05", "5A-U1-W06", "5A-U1-W18", "5A-U1-W19"],
+      phraseIds: ["5A-U1-P03", "5A-U1-P04", "5A-U1-P05", "5A-U1-P07"],
+      sentenceIds: ["5A-U1-S09", "5A-U1-S10", "5A-U1-S11", "5A-U1-S12", "5A-U1-S13", "5A-U1-S14", "5A-U1-S15", "5A-U1-S16", "5A-U1-S17"],
+      storyIds: ["5A-U1-ST07", "5A-U1-ST08", "5A-U1-ST09", "5A-U1-ST10", "5A-U1-ST11", "5A-U1-ST12"]
+    },
+    {
+      id: "5A-U1-C4",
+      title: "频率副词和句型替换",
+      focus: "练 always / usually / often / never，以及第三人称句型。",
+      wordIds: ["5A-U1-W09", "5A-U1-W14", "5A-U1-W20", "5A-U1-W21"],
+      phraseIds: ["5A-U1-P01", "5A-U1-P03", "5A-U1-P04", "5A-U1-P07"],
+      sentenceIds: ["5A-U1-S02", "5A-U1-S03", "5A-U1-S09", "5A-U1-S15", "5A-U1-S18"],
+      storyIds: []
+    },
+    {
+      id: "5A-U1-C5",
+      title: "Unit 1 综合复盘",
+      focus: "只复盘本单元已经学过的词句和课文。",
+      reviewOnly: true,
+      wordIds: unit.words.map((item) => item.id),
+      phraseIds: (unit.phrases || []).map((item) => item.id),
+      sentenceIds: unit.sentences.map((item) => item.id),
+      storyIds: (unit.story || []).map((item) => item.id)
+    }
+  ].map((chunk) => hydrateChunk(unit, chunk));
+}
+
+function buildGenericChunks(unit) {
+  const chunks = [];
+  const wordGroups = chunkArray(unit.words || [], 8);
+  wordGroups.forEach((words, index) => {
+    const story = (unit.story || []).slice(index * 4, index * 4 + 5);
+    const sentences = (unit.sentences || []).slice(index * 3, index * 3 + 4);
+    chunks.push(
+      hydrateChunk(unit, {
+        id: `${unit.id}-C${index + 1}`,
+        title: `${unit.title} 第 ${index + 1} 小课`,
+        focus: "按少量单词、相关句子、课文片段推进。",
+        wordIds: words.map((item) => item.id),
+        phraseIds: (unit.phrases || []).slice(index * 2, index * 2 + 3).map((item) => item.id),
+        sentenceIds: sentences.map((item) => item.id),
+        storyIds: story.map((item) => item.id)
+      })
+    );
+  });
+  chunks.push(
+    hydrateChunk(unit, {
+      id: `${unit.id}-Review`,
+      title: `${unit.title} 综合复盘`,
+      focus: "复盘本单元已经开放学习的内容。",
+      reviewOnly: true,
+      wordIds: (unit.words || []).map((item) => item.id),
+      phraseIds: (unit.phrases || []).map((item) => item.id),
+      sentenceIds: (unit.sentences || []).map((item) => item.id),
+      storyIds: (unit.story || []).map((item) => item.id)
+    })
+  );
+  return chunks;
+}
+
+function hydrateChunk(unit, chunk) {
+  return {
+    ...chunk,
+    words: findItemsByIds(unit.words || [], chunk.wordIds),
+    phrases: findItemsByIds(unit.phrases || [], chunk.phraseIds),
+    sentences: findItemsByIds(unit.sentences || [], chunk.sentenceIds),
+    story: findItemsByIds(unit.story || [], chunk.storyIds)
+  };
+}
+
+function findItemsByIds(items, ids = []) {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks.length ? chunks : [[]];
+}
+
+function getChunkLearningItems(chunk) {
+  if (!chunk) return [];
+  return [
+    ...chunk.words.map((item) => ({ ...item, itemKind: "word" })),
+    ...chunk.phrases.map((item) => ({ ...item, itemKind: "phrase" })),
+    ...chunk.sentences.map((item) => ({ ...item, itemKind: "sentence" })),
+    ...chunk.story.map((item) => ({ ...item, itemKind: "story" }))
+  ];
+}
+
+function markChunkLearned(unit, chunk) {
+  getChunkLearningItems(chunk).forEach((item) => {
+    if (!state.learnedItems[item.id]) {
+      state.learnedItems[item.id] = {
+        itemId: item.id,
+        itemKind: item.itemKind,
+        unitId: unit.id,
+        chunkId: chunk.id,
+        stage: "new",
+        learningStatus: "newLearned",
+        testStatus: "untested",
+        masteryStatus: "notStable",
+        gate: {
+          heardStandardAudio: true,
+          readMeaningOrScene: true,
+          followedOrRead: true,
+          lightPractice: true
+        },
+        learnedAt: new Date().toISOString(),
+        lastPracticedAt: null
+      };
+    }
+    const stat = getItemStat(item.id, item.itemKind);
+    stat.stage = getChildStageLabel(stat);
+    stat.learningStatus = "newLearned";
+    stat.testStatus ||= "untested";
+    stat.masteryStatus = "notStable";
+    stat.learnedAt ||= state.learnedItems[item.id].learnedAt;
+  });
+}
+
+function getLearnedEntry(itemId) {
+  return state.learnedItems[itemId] || null;
+}
+
+function isItemLearned(itemId) {
+  return Boolean(getLearnedEntry(itemId));
+}
+
+function getLearnedQuestionItems(filter = {}) {
+  const items = [];
+  getVerifiedUnits().forEach((unit) => {
+    const all = [
+      ...(unit.words || []).map((item) => ({ ...item, itemKind: "word" })),
+      ...(unit.phrases || []).map((item) => ({ ...item, itemKind: "phrase" })),
+      ...(unit.sentences || []).map((item) => ({ ...item, itemKind: "sentence" }))
+    ];
+    all.forEach((item) => {
+      const entry = getLearnedEntry(item.id);
+      if (!entry) return;
+      if (filter.unitId && filter.unitId !== unit.id) return;
+      if (filter.chunkId && filter.chunkId !== entry.chunkId) return;
+      items.push({ ...item, unitId: unit.id, chunkId: entry.chunkId });
+    });
+  });
+  return items;
+}
+
+function getReviewQuestionItems(filter = {}) {
+  const items = [];
+  getVerifiedReviewUnits().forEach((unit) => {
+    if (filter.catalogId && filter.catalogId !== unit.catalogId) return;
+    if (filter.unitId && filter.unitId !== unit.id) return;
+    const all = [
+      ...(unit.words || []).map((item) => ({ ...item, itemKind: "word" })),
+      ...(unit.phrases || []).map((item) => ({ ...item, itemKind: "phrase" })),
+      ...(unit.sentences || []).map((item) => ({ ...item, itemKind: "sentence" }))
+    ];
+    all.forEach((item) => items.push({ ...item, unitId: unit.id, catalogId: unit.catalogId, reviewUnit: true }));
+  });
+  return items;
+}
+
+function getWarmupQuestions() {
+  const mistakes = getActiveMistakes().slice(0, 2).map(mistakeToQuestion);
+  const learned = [...getReviewQuestionItems(), ...getLearnedQuestionItems()]
+    .sort((a, b) => getItemMasteryScore(a.id, a.itemKind) - getItemMasteryScore(b.id, b.itemKind))
+    .slice(0, 4)
+    .map((item, index) => questionForLearnedItem(item, { badge: index ? "旧知热身" : "小漏洞回收" }));
+  return uniqueQuestions([...mistakes, ...learned]).slice(0, 5);
 }
 
 function isMaterialVerified() {
@@ -174,31 +514,32 @@ function renderHome() {
   const materialReady = isMaterialVerified();
   const previewUnit = getNextPreviewUnit();
   const hasPreview = Boolean(previewUnit) && materialReady;
+  const warmupQuestions = getWarmupQuestions();
+  const previewChunk = previewUnit ? getCurrentLearningChunk(previewUnit) : null;
   const mastery = previewUnit ? getUnitMastery(previewUnit) : getUnitMastery(getFirstVerifiedUnit());
+  const todayTasks = hasPreview
+    ? [
+        warmupQuestions.length ? taskItem(1, "旧知热身", "只测已学内容 + 小漏洞回收", "约 5-8 分钟") : "",
+        taskItem(warmupQuestions.length ? 2 : 1, "新课学习", `${previewChunk?.title || previewUnit.title} 先听读再理解`, "约 15-20 分钟"),
+        taskItem(warmupQuestions.length ? 3 : 2, "轻练习", "认词、听音、拼写、句型配对", "约 8-10 分钟"),
+        taskItem(warmupQuestions.length ? 4 : 3, "小测收尾", "只测今天已学内容，目标 100%", "约 5-7 分钟")
+      ].join("")
+    : [
+        taskItem(1, "已学滚动", "只从已学池抽题，错开覆盖", "约 6 分钟"),
+        taskItem(2, "小漏洞回收", weakCount ? `${weakCount} 个小点优先` : "薄弱点专项", "约 7 分钟"),
+        taskItem(3, "综合小测", "已学内容混合复测", "约 7 分钟")
+      ].join("");
   appViews.home.innerHTML = `
     <div class="hero-band">
       <section class="today-plan">
         <p class="eyebrow">Mini 今日下发计划</p>
-        <h2>${hasPreview ? "先预习，再轻练，最后小测收尾" : "今天做一轮轻量总复习"}</h2>
+        <h2>${hasPreview ? "先学一点，再练稳，最后小测收尾" : "今天做一轮已学总复习"}</h2>
         <p class="hero-copy">目标是每个核心点最终 100% 掌握。不会的先记下来，后面会换一种方式再见它。</p>
         <div class="task-list">
-          ${
-            hasPreview
-              ? [
-                  taskItem(1, "旧知热身", "三四年级滚动复习 + 小漏洞回收", "约 8 分钟"),
-                  taskItem(2, "五上预习课", `${previewUnit.title} 先领读再理解`, "约 20 分钟"),
-                  taskItem(3, "轻练习", "认词、听音、句型配对", "约 10 分钟"),
-                  taskItem(4, "小测收尾", "核心基础目标 100%", "约 7 分钟")
-                ].join("")
-              : [
-                  taskItem(1, "旧知滚动", "三四年级知识点错开覆盖", "约 6 分钟"),
-                  taskItem(2, "小漏洞回收", weakCount ? `${weakCount} 个小点优先` : "薄弱点专项", "约 7 分钟"),
-                  taskItem(3, "综合小测", "已学内容混合复测", "约 7 分钟")
-                ].join("")
-          }
+          ${todayTasks}
         </div>
         <div class="button-row">
-          <button class="primary-button" data-action="start-preview" ${materialReady ? "" : "disabled"}>${materialReady ? (hasPreview ? "开始预习课" : "开始总练习") : "资料校对中"}</button>
+          <button class="primary-button" data-action="start-learning" ${materialReady ? "" : "disabled"}>${materialReady ? (hasPreview ? "开始学习" : "开始总练习") : "资料校对中"}</button>
           <button class="secondary-button" data-action="start-daily" ${materialReady ? "" : "disabled"}>每日总练习</button>
           <button class="secondary-button" data-route-link="speaking">口语跟读</button>
         </div>
@@ -216,7 +557,7 @@ function renderHome() {
     <section class="panel classroom-flow">
       <h2>APP 学习流程</h2>
       <div class="flow-strip">
-        ${flowStep(1, "预习课", "像上课一样先听、读、懂")}
+        ${flowStep(1, "开始学习", "先旧知热身，再新课听读")}
         ${flowStep(2, "轻练习", "少量题确认刚学会")}
         ${flowStep(3, "小测", "核心内容目标 100%")}
         ${flowStep(4, "小漏洞回收", "答错不堵路，后面变式再练")}
@@ -266,7 +607,7 @@ function renderHome() {
     </section>
   `;
 
-  appViews.home.querySelector("[data-action='start-preview']").addEventListener("click", () => {
+  appViews.home.querySelector("[data-action='start-learning']").addEventListener("click", () => {
     if (hasPreview) startLesson(previewUnit.id);
     else startPractice("daily");
   });
@@ -281,27 +622,34 @@ function renderEnglish() {
   const verifiedUnits = getVerifiedUnits();
   const reviewReady = getVerifiedReviewUnits().length > 0;
   const nextPreviewUnit = getNextPreviewUnit() || getFirstVerifiedUnit();
+  const nextChunk = nextPreviewUnit ? getCurrentLearningChunk(nextPreviewUnit) : null;
+  const learnedFiveA = getLearnedQuestionItems().filter((item) => item.unitId?.startsWith("5A"));
   appViews.english.innerHTML = `
     <div class="grid two" style="margin-bottom:16px">
       <section class="panel">
         <h2>三四年级总复习</h2>
-        <p class="muted">Mini 保留完整课本库，核验通过后按“单词、句子、课文、专项”生成复习包，平板只展示可学内容。</p>
+        <p class="muted">三四年级必须等单词表、句型、课文和书面栏目全书核验完成后开放。已核验的 Story time 先留在 Mini 资料中心，不直接给孩子练。</p>
         <div class="report-list">
           ${data.reviewCatalog.map((item) => reviewCatalogRow(item)).join("")}
         </div>
         <div class="button-row" style="margin-top:14px">
-          <button class="secondary-button" data-start="review-total" ${reviewReady ? "" : "disabled"}>${reviewReady ? "开始总复习" : "复习资料核对中"}</button>
+          <button class="secondary-button" data-start="review-total" ${reviewReady ? "" : "disabled"}>${reviewReady ? "开始三四年级总复习" : "待完整核验后开放"}</button>
           <button class="secondary-button" data-start="mistakes" ${materialReady ? "" : "disabled"}>小漏洞专项</button>
         </div>
       </section>
       <section class="panel">
-        <h2>五上预习课堂</h2>
-        <p class="muted">顺序按学校课堂来：课程导入、英音领读、词句理解、课文听读、轻练习、小测。</p>
+        <h2>五上新课学习</h2>
+        <p class="muted">顺序按学校课堂来：旧知热身、新课导入、英音领读、词句理解、课文听读、轻练习、小测。</p>
         <div class="chip-row">
           ${data.learningTracks[1].sections.map((item) => `<span class="chip">${item}</span>`).join("")}
         </div>
+        ${
+          nextChunk
+            ? `<div class="card" style="margin-top:14px"><span class="badge blue">今天小课</span><h3>${nextChunk.title}</h3><p class="muted">${nextChunk.focus}</p><p class="muted">新词/短语约 ${nextChunk.words.length + nextChunk.phrases.length} 个，课文句 ${nextChunk.story.length || nextChunk.sentences.length} 句。</p></div>`
+            : ""
+        }
         <div class="button-row" style="margin-top:14px">
-          <button class="primary-button" data-lesson="${nextPreviewUnit?.id || ""}" ${nextPreviewUnit ? "" : "disabled"}>${nextPreviewUnit ? `开始 ${nextPreviewUnit.title.replace(/^Unit\\s+/i, "Unit ")} 预习课` : "预习包生成中"}</button>
+          <button class="primary-button" data-lesson="${nextPreviewUnit?.id || ""}" ${nextPreviewUnit ? "" : "disabled"}>${nextPreviewUnit ? `开始 ${nextPreviewUnit.title.replace(/^Unit\\s+/i, "Unit ")} 学习` : "学习包生成中"}</button>
           <button class="secondary-button" data-start="daily" ${materialReady ? "" : "disabled"}>每日总练习</button>
         </div>
       </section>
@@ -320,12 +668,23 @@ function renderEnglish() {
       <section class="panel">
         <h2>测试</h2>
         <div class="grid">
-          ${testRow("日测", "小漏洞、到期复习、今日新学混合出现", "daily")}
-          ${testRow("周测", "本周核心内容、小漏洞变式、旧知滚动", "weekly")}
-          ${testRow("单元测", "词、句、课文理解、听力、拼写综合检查", "unit")}
+          ${testRow("日测", "只测已学内容：小漏洞、到期复习、今日新学混合出现", "daily")}
+          ${testRow("周测", "只测已学内容：本周核心、小漏洞变式、旧知滚动", "weekly")}
+          ${testRow("单元测", "只测已开放内容：词、句、课文理解、听力、拼写综合检查", "unit")}
         </div>
       </section>
     </div>
+    <section class="panel" style="margin-bottom:16px">
+      <h2>自主复习</h2>
+      <p class="muted">家长或孩子可选已开放课本/单元复习，不设时间限制；答错内容和今日学习进入同一个小漏洞池。</p>
+      <div class="grid two">
+        ${data.reviewCatalog
+          .filter((item) => item.id !== "G5A")
+          .map((item) => freeReviewCard(item, getVerifiedReviewUnits().some((unit) => unit.catalogId === item.id)))
+          .join("")}
+        ${freeReviewCard({ id: "5a-learned", title: "五年级上册已学内容", focus: learnedFiveA.length ? [`已学 ${learnedFiveA.length} 个点`] : ["先完成今日学习后开放"] }, learnedFiveA.length > 0)}
+      </div>
+    </section>
     <section class="panel" style="margin-top:16px">
       <h2>单元</h2>
       ${verifiedUnits.length ? verifiedUnits.map(unitRow).join("") : `<div class="card"><h3>资料校对中</h3><p class="muted">核验通过后才会开放单元练习。</p></div>`}
@@ -334,6 +693,13 @@ function renderEnglish() {
 
   appViews.english.querySelectorAll("[data-start]").forEach((button) => {
     button.addEventListener("click", () => startPractice(button.dataset.start));
+  });
+  appViews.english.querySelectorAll("[data-review]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedReview = button.dataset.review;
+      saveState();
+      startPractice("self-review");
+    });
   });
   appViews.english.querySelectorAll("[data-lesson]").forEach((button) => {
     button.addEventListener("click", () => startLesson(button.dataset.lesson));
@@ -434,6 +800,7 @@ function renderParent() {
   const statusText = materialStatusText();
   const delivery = data.deliveryPolicy || {};
   const studyPackage = data.studyPackage || {};
+  const studentName = state.studentName || "";
   appViews.parent.innerHTML = `
     <div class="grid two">
       <section class="panel">
@@ -443,11 +810,20 @@ function renderParent() {
           ${reportItem("当前学习包", `${data.title} v${data.version}`, "badge blue")}
           ${reportItem("包类型", data.packageKind === "tablet-learning-package" ? "Mini 生成，平板执行" : "本地资料包", "badge blue")}
           ${reportItem("校验状态", isMaterialVerified() ? `${statusText}，只开放已核验内容` : "Mini 资料校对中，学习入口已锁定", isMaterialVerified() ? "badge" : "badge amber")}
+          ${reportItem("自动更新", updateStatusText(), latestUpdateSucceeded() ? "badge" : "badge amber", latestUpdateSucceeded() ? "正常" : "关注")}
           ${reportItem("缓存范围", (delivery.offlineCache || []).join(" / ") || "今日学习包", "badge")}
           ${reportItem("音频状态", "暂无官方音频，英音慢速领读兜底；正式启用前需逐条试听", "badge amber")}
-          ${reportItem("朗读口音", "学校要求英音，默认 en-GB / Daniel 优先", "badge blue")}
+          ${reportItem("朗读口音", "学校要求英音，默认 en-GB 女声优先", "badge blue")}
           ${reportItem("发音评分", state.settings.speechProvider === "demo" ? "模拟接口，待接云服务" : "云服务已配置", "badge amber")}
           ${reportItem("平板运行", "iPad 不安装 Codex，只运行学习 APP；Codex/Mini 负责备课和生成包", "badge blue")}
+        </div>
+        <div class="setting-stack student-settings">
+          <h3>孩子信息</h3>
+          <label class="field-label" for="studentName">
+            <span>姓名</span>
+            <input class="text-input" id="studentName" value="${escapeAttr(studentName)}" placeholder="输入孩子姓名" autocomplete="name" />
+          </label>
+          <p class="support-note">姓名只保存在本机，导出学习记录时会写入文件内容和文件名，方便家长手动回传。</p>
         </div>
         <div class="button-row" style="margin-top:14px">
           <button class="secondary-button" data-action="export">导出学习记录</button>
@@ -512,7 +888,7 @@ function renderParent() {
             <span><strong>语速</strong><br><span class="muted">按老师音频：慢速、清楚、留停顿</span></span>
             <strong id="rateLabel">${state.settings.speechRate.toFixed(2)}x</strong>
           </label>
-          <input id="speechRate" type="range" min="0.50" max="0.78" step="0.01" value="${state.settings.speechRate}" />
+          <input id="speechRate" type="range" min="0.46" max="0.78" step="0.01" value="${state.settings.speechRate}" />
           <label class="setting-line">
             <span><strong>语音</strong><br><span class="muted">优先选择英国英语，平板可在这里切换</span></span>
           </label>
@@ -563,6 +939,10 @@ function renderParent() {
   appViews.parent.querySelector("[data-action='clear-cache']").addEventListener("click", clearAppCache);
   appViews.parent.querySelector("[data-action='add-manual-mistake']").addEventListener("click", addManualMistake);
   appViews.parent.querySelector("#packageInput").addEventListener("change", importPackage);
+  appViews.parent.querySelector("#studentName").addEventListener("input", (event) => {
+    state.studentName = event.target.value.trim();
+    saveState();
+  });
   appViews.parent.querySelector("#speechRate").addEventListener("input", (event) => {
     state.settings.speechRate = Number(event.target.value);
     appViews.parent.querySelector("#rateLabel").textContent = `${state.settings.speechRate.toFixed(2)}x`;
@@ -584,8 +964,11 @@ function startLesson(unitId) {
     navigate("english");
     return;
   }
+  const unit = data.units.find((item) => item.id === unitId);
+  const chunk = unit ? getCurrentLearningChunk(unit) : null;
   currentLesson = {
     unitId,
+    chunkId: chunk?.id,
     step: 0
   };
   navigate("lesson");
@@ -594,11 +977,12 @@ function startLesson(unitId) {
 
 function renderLesson() {
   const unit = data.units.find((item) => item.id === currentLesson?.unitId) || data.units[0];
-  const steps = buildLessonSteps(unit);
+  const chunk = getLearningChunks(unit).find((item) => item.id === currentLesson?.chunkId) || getCurrentLearningChunk(unit);
+  const steps = buildLessonSteps(unit, chunk);
   const step = steps[currentLesson.step];
   const progress = Math.round(((currentLesson.step + 1) / steps.length) * 100);
 
-  pageTitle.textContent = `${unit.title} 预习课`;
+  pageTitle.textContent = `${unit.title} · ${chunk.title}`;
   eyebrow.textContent = "先学后练";
 
   appViews.lesson.innerHTML = `
@@ -618,7 +1002,7 @@ function renderLesson() {
         <div class="button-row">
           <button class="secondary-button" data-lesson-action="prev" ${currentLesson.step === 0 ? "disabled" : ""}>上一步</button>
           <button class="secondary-button" data-lesson-action="play">播放领读</button>
-          <button class="primary-button" data-lesson-action="next">${currentLesson.step === steps.length - 1 ? "完成预习" : "下一步"}</button>
+          <button class="primary-button" data-lesson-action="next">${currentLesson.step === steps.length - 1 ? "开始小测" : "下一步"}</button>
         </div>
       </section>
     </div>
@@ -630,6 +1014,7 @@ function renderLesson() {
   });
   appViews.lesson.querySelector("[data-lesson-action='next']").addEventListener("click", () => {
     if (currentLesson.step >= steps.length - 1) {
+      markChunkLearned(unit, chunk);
       state.unitProgress[unit.id] = "practicing";
       saveState();
       startPractice("preview-quiz");
@@ -643,7 +1028,9 @@ function renderLesson() {
   });
   appViews.lesson.querySelectorAll("[data-read]").forEach((button) => {
     button.addEventListener("click", async (event) => {
-      await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(button.dataset.read));
+      await withPlaybackLabel(event.currentTarget, event.currentTarget.querySelector("[data-playback-label]"), () =>
+        speakLikeTeacher(button.dataset.read)
+      );
     });
   });
   appViews.lesson.querySelectorAll("[data-start]").forEach((button) => {
@@ -651,22 +1038,36 @@ function renderLesson() {
   });
 }
 
-function buildLessonSteps(unit) {
+function buildLessonSteps(unit, chunk) {
   const previewLesson = unit.previewLesson || {
     theme: unit.title,
     scene: "先熟悉本单元核心词句，再进入轻练习和小测。",
     teacherSteps: ["主题导入", "单词领读", "短语句型领读", "课文听读", "轻练习", "预习小测"]
   };
-  const phrases = unit.phrases || [];
-  const story = unit.story || unit.sentences || [];
+  const phrases = chunk.phrases || [];
+  const story = chunk.story?.length ? chunk.story : chunk.sentences || [];
+  const warmupQuestions = getWarmupQuestions();
   return [
+    ...(warmupQuestions.length
+      ? [
+          {
+            kind: "warmup",
+            badge: "旧知热身",
+            title: "先把已经学过的唤醒一下",
+            goal: "只测已学",
+            body: "这里不会出现还没学过的五上内容。答错会记入小漏洞，后面换方式再练。",
+            items: [],
+            questionCount: warmupQuestions.length
+          }
+        ]
+      : []),
     {
       kind: "intro",
       badge: "课程导入",
-      title: previewLesson.theme,
+      title: chunk.title || previewLesson.theme,
       goal: "知道主题",
-      body: `${previewLesson.scene} 这一页只帮孩子知道今天要学什么，不做题。`,
-      items: [{ en: unit.title.replace(/^Unit\s+\d+\s+/i, ""), zh: previewLesson.theme }]
+      body: `${chunk.focus || previewLesson.scene} 这一页只帮孩子知道今天要学什么，不做题。`,
+      items: [{ en: unit.title.replace(/^Unit\s+\d+\s+/i, ""), zh: chunk.title || previewLesson.theme }]
     },
     {
       kind: "words",
@@ -674,7 +1075,7 @@ function buildLessonSteps(unit) {
       title: "先听清楚，再跟读单词",
       goal: "会听会读",
       body: "按英音慢速读两遍，换下一个词前留停顿。这里不计分，先把声音听准。",
-      items: unit.words.slice(0, 8)
+      items: chunk.words
     },
     {
       kind: "phrases",
@@ -690,7 +1091,7 @@ function buildLessonSteps(unit) {
       title: "核心句型先理解，再会替换",
       goal: "会听会用",
       body: "句型第一遍正常读，第二遍稍慢，注意频率副词和第三人称。",
-      items: unit.sentences
+      items: chunk.sentences
     },
     {
       kind: "story",
@@ -713,22 +1114,22 @@ function buildLessonSteps(unit) {
       badge: "预习小测",
       title: "小测收尾",
       goal: "目标 100%",
-      body: "只测今天预习内容。基础题目标 100%，暂时没稳的点会进入后续滚动复习。",
+      body: "只测今天已经听读理解过的内容。基础题目标 100%，暂时没稳的点会进入后续滚动复习。",
       items: []
     }
   ];
 }
 
 function lessonStepTemplate(step) {
-  if (["practice", "quiz"].includes(step.kind)) {
+  if (["warmup", "practice", "quiz"].includes(step.kind)) {
     return `
       <div>
         <span class="badge ${step.kind === "quiz" ? "amber" : "blue"}">${step.badge}</span>
         <h2 style="margin-top:12px">${step.title}</h2>
         <p class="question-zh">${step.body}</p>
         <div class="button-row" style="justify-content:center;margin-top:18px">
-          <button class="primary-button" data-start="${step.kind === "quiz" ? "preview-quiz" : "preview-practice"}">
-            ${step.kind === "quiz" ? "开始预习小测" : "开始轻练习"}
+          <button class="primary-button" data-start="${step.kind === "warmup" ? "warmup" : step.kind === "quiz" ? "preview-quiz" : "preview-practice"}">
+            ${step.kind === "warmup" ? `开始热身 ${step.questionCount || ""}` : step.kind === "quiz" ? "开始小测" : "开始轻练习"}
           </button>
         </div>
       </div>
@@ -746,7 +1147,7 @@ function lessonStepTemplate(step) {
             (item) => `
               <button class="lesson-row" data-read="${escapeAttr(item.en)}">
                 <span><strong>${item.en}</strong>${item.zh ? `<br><span class="muted">${item.zh}</span>` : ""}</span>
-                <span class="badge">领读</span>
+                <span class="badge" data-playback-label>领读</span>
               </button>
             `
           )
@@ -787,7 +1188,8 @@ function startPractice(mode) {
     correct: 0,
     total: pool.length,
     questions: pool,
-    results: []
+    results: [],
+    answered: false
   };
   renderPractice();
   navigate("practice");
@@ -797,6 +1199,7 @@ function startPractice(mode) {
 
 function renderPractice() {
   const q = currentPractice.questions[currentPractice.index];
+  currentPractice.answered = false;
   const progress = Math.round((currentPractice.index / currentPractice.total) * 100);
   appViews.practice.innerHTML = `
     <div class="practice-stage">
@@ -823,7 +1226,7 @@ function renderPractice() {
     await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(q.audioText));
   });
   appViews.practice.querySelector("[data-action='play-slow']").addEventListener("click", async (event) => {
-    await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(q.audioText, { rate: 0.5 }));
+    await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(q.audioText, { rate: SLOW_SPEECH_RATE }));
   });
   appViews.practice.querySelector("[data-action='exit-practice']").addEventListener("click", () => navigate("english"));
   appViews.practice.querySelectorAll("[data-answer]").forEach((button) => {
@@ -850,6 +1253,7 @@ function questionTemplate(q) {
           <div class="choice-grid">
             ${q.choices.map((choice) => `<button class="choice-button" data-answer="${escapeAttr(choice)}">${choice}</button>`).join("")}
           </div>
+          <div class="answer-feedback" id="answerFeedback" aria-live="polite"></div>
         </div>
       </section>
     `;
@@ -867,6 +1271,7 @@ function questionTemplate(q) {
           <div class="button-row" style="justify-content:center;margin-top:14px">
             <button class="primary-button" data-action="submit-spell">提交</button>
           </div>
+          <div class="answer-feedback" id="answerFeedback" aria-live="polite"></div>
         </div>
       </section>
     `;
@@ -881,16 +1286,28 @@ function questionTemplate(q) {
         <div class="choice-grid">
           ${q.choices.map((choice) => `<button class="choice-button" data-answer="${escapeAttr(choice)}">${choice}</button>`).join("")}
         </div>
+        <div class="answer-feedback" id="answerFeedback" aria-live="polite"></div>
       </div>
     </section>
   `;
 }
 
 function handleAnswer(answer, button) {
+  if (!currentPractice || currentPractice.answered) return;
+  currentPractice.answered = true;
   const q = currentPractice.questions[currentPractice.index];
   const normalized = normalize(answer);
   const expected = normalize(q.answer);
   const ok = normalized === expected;
+  const buttons = [...appViews.practice.querySelectorAll("[data-answer]")];
+  buttons.forEach((choiceButton) => {
+    choiceButton.disabled = true;
+    if (normalize(choiceButton.dataset.answer) === expected) choiceButton.classList.add("correct");
+  });
+  const spellInput = appViews.practice.querySelector("#spellAnswer");
+  const spellSubmit = appViews.practice.querySelector("[data-action='submit-spell']");
+  if (spellInput) spellInput.disabled = true;
+  if (spellSubmit) spellSubmit.disabled = true;
 
   if (button) button.classList.add(ok ? "correct" : "wrong");
   updateItemStats(q, ok);
@@ -902,6 +1319,11 @@ function handleAnswer(answer, button) {
     addMistake(q, inferReason(q));
     showToast("先记下来，后面换个方式再见它");
   }
+  const feedback = appViews.practice.querySelector("#answerFeedback");
+  if (feedback) {
+    feedback.className = `answer-feedback ${ok ? "ok" : "warn"}`;
+    feedback.textContent = ok ? "很稳，下一题。" : `正确答案是：${q.answer}`;
+  }
 
   state.records.push({
     id: `r-${Date.now()}`,
@@ -911,7 +1333,12 @@ function handleAnswer(answer, button) {
     expected: q.answer,
     correct: ok,
     itemId: q.itemId,
+    itemKind: q.itemKind,
     skill: q.skill,
+    chunkId: q.chunkId || currentLesson?.chunkId,
+    learningStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.learningStatus,
+    testStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.testStatus,
+    masteryStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.masteryStatus,
     at: new Date().toISOString()
   });
   currentPractice.results.push({ question: q, correct: ok });
@@ -921,7 +1348,7 @@ function handleAnswer(answer, button) {
     currentPractice.index += 1;
     if (currentPractice.index >= currentPractice.total) finishPractice();
     else renderPractice();
-  }, 650);
+  }, ok ? 900 : 1400);
 }
 
 function finishPractice() {
@@ -957,81 +1384,64 @@ function finishPractice() {
 
 function buildQuestionPool(mode) {
   const unit = getCurrentStudyUnit();
-  const words = unit.words;
-  const sentences = unit.sentences;
-  const phrases = unit.phrases || [];
-  const mistakeQuestions = getActiveMistakes().slice(0, 4).map((item) => {
-    const isListening = item.reason === "听不出来";
-    return {
-      type: "spell",
-      title: isListening ? "听音默写" : "默写单词",
-      badge: "小漏洞回收",
-      level: isListening ? "听写" : "拼写",
-      prompt: isListening ? "听录音，写出单词" : item.zh || item.prompt || "写出正确单词",
-      answer: item.en || item.answer,
-      audioText: item.en || item.answer,
-      itemId: item.itemId || item.en || item.answer,
-      itemKind: item.itemKind || "word",
-      unitId: item.unitId || unit.id,
-      skill: isListening ? "listen" : "spelling",
-      autoPlay: isListening,
-      source: item
-    };
-  });
+  const chunk = unit ? getLearningChunks(unit).find((item) => item.id === currentLesson?.chunkId) || getCurrentLearningChunk(unit) : null;
+  const reviewItems = getReviewQuestionItems();
+  const learnedItems = [...reviewItems, ...getLearnedQuestionItems()];
+  const learnedForUnit = unit ? getLearnedQuestionItems({ unitId: unit.id }) : learnedItems;
+  const mistakeQuestions = getActiveMistakes().slice(0, 5).map(mistakeToQuestion);
 
-  const generated = [
-    listenQuestion(words[0], words, { unitId: unit.id, level: "听单词" }),
-    listenQuestion(words[1], words, { unitId: unit.id, level: "听单词" }),
-    spellQuestion(words[3], { unitId: unit.id, title: "看中文写英文", badge: "拼写" }),
-    spellQuestion(words[7], { unitId: unit.id, title: "看中文写英文", badge: "拼写" }),
-    meaningQuestion(sentences[0], sentences, { unitId: unit.id, title: "句义理解", badge: "句型" }),
-    meaningQuestion(sentences[1], sentences, { unitId: unit.id, title: "句义理解", badge: "句型" })
-  ];
-
-  if (mode === "mistakes") return mistakeQuestions.length ? mistakeQuestions : generated.slice(0, 4);
+  if (mode === "warmup") return getWarmupQuestions();
+  if (mode === "mistakes") return mistakeQuestions;
   if (mode === "preview-practice") {
-    return [
-      listenQuestion(words[0], words, { unitId: unit.id, badge: "认词", level: "听单词" }),
-      phraseChoiceQuestion(phrases[0], phrases, { unitId: unit.id }),
-      sentenceListenQuestion(sentences[1], sentences, { unitId: unit.id }),
-      spellQuestion(words[2], { unitId: unit.id, title: "看中文写英文", badge: "轻拼写" })
-    ].filter(Boolean);
+    return buildChunkPracticeQuestions(unit, chunk, "轻练习").slice(0, 5);
   }
   if (mode === "preview-quiz") {
-    return [
-      listenQuestion(words[1], words, { unitId: unit.id, badge: "预习小测", level: "听单词" }),
-      phraseChoiceQuestion(phrases[2], phrases, { unitId: unit.id, badge: "预习小测" }),
-      spellQuestion(words[3], { unitId: unit.id, title: "默写单词", badge: "预习小测" }),
-      spellQuestion(words[7], { unitId: unit.id, title: "默写单词", badge: "预习小测" }),
-      sentenceListenQuestion(sentences[0], sentences, { unitId: unit.id, badge: "预习小测" }),
-      meaningQuestion(sentences[3], sentences, { unitId: unit.id, title: "句型理解", badge: "预习小测" })
-    ].filter(Boolean);
+    markChunkLearned(unit, chunk);
+    return buildChunkPracticeQuestions(unit, chunk, "小测").slice(0, 7);
   }
-  if (mode === "start-listening") {
-    return [
-      listenQuestion(words[0], words, { unitId: unit.id, level: "听单词" }),
-      phraseChoiceQuestion(phrases[0], phrases, { unitId: unit.id }),
-      sentenceListenQuestion(sentences[2], sentences, { unitId: unit.id }),
-      listenQuestion(words[8], words, { unitId: unit.id, level: "听单词" })
-    ].filter(Boolean);
+  if (mode === "self-review") {
+    if (state.selectedReview !== "5a-learned") {
+      return buildQuestionsFromLearned(getReviewQuestionItems({ catalogId: state.selectedReview }), 14);
+    }
+    return buildQuestionsFromLearned(learnedForUnit, 12);
   }
-  if (mode === "start-recognition") return [listenQuestion(words[2], words, { unitId: unit.id }), meaningQuestion(sentences[0], sentences, { unitId: unit.id }), phraseChoiceQuestion(phrases[1], phrases, { unitId: unit.id })].filter(Boolean);
-  if (mode === "start-spelling") return [spellQuestion(words[3], { unitId: unit.id }), spellQuestion(words[6], { unitId: unit.id }), spellQuestion(words[9], { unitId: unit.id })].filter(Boolean);
-  if (mode === "start-sentence") return sentences.map((sentence) => meaningQuestion(sentence, sentences, { unitId: unit.id }));
-  if (mode === "review-total") return [listenQuestion(words[2], words, { unitId: unit.id }), spellQuestion(words[6], { unitId: unit.id }), spellQuestion(words[7], { unitId: unit.id }), meaningQuestion(sentences[2], sentences, { unitId: unit.id })].filter(Boolean);
-  if (mode === "weekly") return [...mistakeQuestions, ...generated].slice(0, 8);
-  if (mode === "unit") return [...generated, ...sentences.map((sentence) => meaningQuestion(sentence, sentences, { unitId: unit.id }))].slice(0, 10);
-  return buildDailyQuestions(unit, mistakeQuestions);
+  if (mode === "start-listening") return buildQuestionsFromLearned(learnedItems.filter((item) => ["word", "phrase", "sentence"].includes(item.itemKind)), 6, "listen");
+  if (mode === "start-recognition") return buildQuestionsFromLearned(learnedItems, 6, "recognition");
+  if (mode === "start-spelling") return buildQuestionsFromLearned(learnedItems.filter((item) => item.itemKind === "word"), 6, "spelling");
+  if (mode === "start-sentence") return buildQuestionsFromLearned(learnedItems.filter((item) => item.itemKind === "sentence"), 8, "use");
+  if (mode === "review-total") return buildQuestionsFromLearned(learnedItems, 10);
+  if (mode === "weekly") return uniqueQuestions([...mistakeQuestions, ...buildQuestionsFromLearned(learnedItems, 8)]).slice(0, 10);
+  if (mode === "unit") return buildQuestionsFromLearned(learnedForUnit, 12);
+  return buildDailyQuestions(learnedItems, mistakeQuestions);
+}
+
+function buildChunkPracticeQuestions(unit, chunk, badge) {
+  if (!unit || !chunk) return [];
+  return [
+    listenQuestion(chunk.words[0], chunk.words, { unitId: unit.id, chunkId: chunk.id, badge, level: "听单词" }),
+    listenQuestion(chunk.words[1], chunk.words, { unitId: unit.id, chunkId: chunk.id, badge, level: "听单词" }),
+    phraseChoiceQuestion(chunk.phrases[0], chunk.phrases, { unitId: unit.id, chunkId: chunk.id, badge }),
+    spellQuestion(chunk.words[2] || chunk.words[0], { unitId: unit.id, chunkId: chunk.id, title: "听后拼写", badge, autoPlay: true }),
+    spellQuestion(chunk.words[3] || chunk.words[1], { unitId: unit.id, chunkId: chunk.id, title: "看中文写英文", badge }),
+    sentenceListenQuestion(chunk.sentences[0], chunk.sentences, { unitId: unit.id, chunkId: chunk.id, badge }),
+    meaningQuestion(chunk.sentences[1] || chunk.sentences[0], chunk.sentences, { unitId: unit.id, chunkId: chunk.id, title: "句义理解", badge })
+  ].filter(Boolean);
+}
+
+function buildQuestionsFromLearned(items, limit, forcedSkill) {
+  const sorted = [...items].sort((a, b) => getItemMasteryScore(a.id, a.itemKind) - getItemMasteryScore(b.id, b.itemKind));
+  return uniqueQuestions(sorted.map((item) => questionForLearnedItem(item, { forcedSkill })).filter(Boolean)).slice(0, limit);
 }
 
 function listenQuestion(word, words, overrides = {}) {
   if (!word) return null;
+  const isExpression = String(word.en || "").split(/\s+/).length > 1 || /[.!?]/.test(word.en || "");
   return {
     type: "listen-choice",
-    title: "听音选词",
-    badge: "听音选词",
-    level: "听单词",
-    prompt: "听录音，选择听到的单词",
+    title: isExpression ? "听音选表达" : "听音选词",
+    badge: isExpression ? "听表达" : "听音选词",
+    level: isExpression ? "听表达" : "听单词",
+    prompt: isExpression ? "听录音，选择听到的表达" : "听录音，选择听到的单词",
     answer: word.en,
     audioText: word.en,
     itemId: word.id,
@@ -1039,7 +1449,7 @@ function listenQuestion(word, words, overrides = {}) {
     unitId: overrides.unitId || "5A-U1",
     skill: "listen",
     core: Boolean(word.core),
-    choices: shuffle([word.en, ...words.filter((item) => item.id !== word.id).slice(0, 3).map((item) => item.en)]),
+    choices: shuffle(uniqueValues([word.en, ...words.filter((item) => item.id !== word.id).slice(0, 3).map((item) => item.en)])),
     ...overrides
   };
 }
@@ -1079,7 +1489,7 @@ function meaningQuestion(sentence, sentences, overrides = {}) {
     unitId: overrides.unitId || "5A-U1",
     skill: "use",
     core: true,
-    choices: shuffle([sentence.zh, ...sentences.filter((item) => item.id !== sentence.id).slice(0, 2).map((item) => item.zh)]),
+    choices: shuffle(uniqueValues([sentence.zh, ...sentences.filter((item) => item.id !== sentence.id).slice(0, 2).map((item) => item.zh)])),
     ...overrides
   };
 }
@@ -1099,7 +1509,7 @@ function phraseChoiceQuestion(phrase, phrases, overrides = {}) {
     unitId: overrides.unitId || "5A-U1",
     skill: "listen",
     core: true,
-    choices: shuffle([phrase.en, ...phrases.filter((item) => item.id !== phrase.id).slice(0, 3).map((item) => item.en)]),
+    choices: shuffle(uniqueValues([phrase.en, ...phrases.filter((item) => item.id !== phrase.id).slice(0, 3).map((item) => item.en)])),
     ...overrides
   };
 }
@@ -1119,13 +1529,9 @@ function sentenceListenQuestion(sentence, sentences, overrides = {}) {
     unitId: overrides.unitId || "5A-U1",
     skill: "listen",
     core: true,
-    choices: shuffle([sentence.zh, ...sentences.filter((item) => item.id !== sentence.id).slice(0, 2).map((item) => item.zh)]),
+    choices: shuffle(uniqueValues([sentence.zh, ...sentences.filter((item) => item.id !== sentence.id).slice(0, 2).map((item) => item.zh)])),
     ...overrides
   };
-}
-
-function getCurrentStudyUnit() {
-  return getNextPreviewUnit() || getFirstVerifiedUnit();
 }
 
 function getActiveMistakes() {
@@ -1134,32 +1540,72 @@ function getActiveMistakes() {
     .sort((a, b) => (b.priority || 1) - (a.priority || 1) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
 }
 
-function buildDailyQuestions(unit, mistakeQuestions) {
-  const words = unit.words;
-  const sentences = unit.sentences;
-  const phrases = unit.phrases || [];
-  const dueQuestions = buildDueReviewQuestions(unit, 3);
-  const foundationQuestions = [
-    listenQuestion(words[0], words, { unitId: unit.id, badge: "核心复习" }),
-    spellQuestion(words[6] || words[0], { unitId: unit.id, badge: "核心复习" }),
-    sentenceListenQuestion(sentences[1] || sentences[0], sentences, { unitId: unit.id, badge: "句型复习" }),
-    phraseChoiceQuestion(phrases[0], phrases, { unitId: unit.id, badge: "短语复习" }),
-    meaningQuestion(sentences[2] || sentences[0], sentences, { unitId: unit.id, badge: "句型复习" })
-  ].filter(Boolean);
-
-  return uniqueQuestions([...mistakeQuestions.slice(0, 2), ...dueQuestions, ...foundationQuestions]).slice(0, 6);
+function mistakeToQuestion(item) {
+  const isListening = item.reason === "听不出来";
+  return {
+    type: "spell",
+    title: isListening ? "听音默写" : item.itemKind === "sentence" ? "句子默写" : "默写单词",
+    badge: "小漏洞回收",
+    level: isListening ? "听写" : "复现",
+    prompt: isListening ? "听录音，写出内容" : item.zh || item.prompt || "写出正确内容",
+    answer: item.en || item.answer,
+    audioText: item.en || item.answer,
+    itemId: item.itemId || item.en || item.answer,
+    itemKind: item.itemKind || "word",
+    unitId: item.unitId,
+    chunkId: item.chunkId,
+    skill: isListening ? "listen" : item.skill || "spelling",
+    autoPlay: isListening,
+    source: item
+  };
 }
 
-function buildDueReviewQuestions(unit, limit) {
-  const words = unit.words
-    .map((word) => ({ item: word, score: getItemMasteryScore(word.id, "word") }))
+function questionForLearnedItem(item, options = {}) {
+  const unit = getUnitById(item.unitId) || getFirstVerifiedUnit();
+  const learnedInUnit = item.reviewUnit ? getReviewQuestionItems({ unitId: item.unitId }) : getLearnedQuestionItems({ unitId: item.unitId });
+  const words = learnedInUnit.filter((candidate) => candidate.itemKind === "word");
+  const phrases = learnedInUnit.filter((candidate) => candidate.itemKind === "phrase");
+  const sentences = learnedInUnit.filter((candidate) => candidate.itemKind === "sentence");
+  const skill = options.forcedSkill || pickNextSkill(item.id, item.itemKind);
+  const meta = {
+    unitId: item.unitId || unit?.id,
+    chunkId: item.chunkId,
+    badge: options.badge || "已学复习",
+    reviewUnit: Boolean(item.reviewUnit)
+  };
+
+  if (item.itemKind === "word") {
+    if (skill === "spelling") return spellQuestion(item, { ...meta, title: "默写单词" });
+    return listenQuestion(item, words.length >= 2 ? words : [item], { ...meta, skill: skill === "recognition" ? "recognition" : "listen" });
+  }
+  if (item.itemKind === "phrase") return phraseChoiceQuestion(item, phrases.length >= 2 ? phrases : [item], { ...meta, skill: "recognition" });
+  if (item.itemKind === "sentence") {
+    if (skill === "listen") return sentenceListenQuestion(item, sentences.length >= 2 ? sentences : [item], meta);
+    return meaningQuestion(item, sentences.length >= 2 ? sentences : [item], { ...meta, title: "句义理解" });
+  }
+  return null;
+}
+
+function pickNextSkill(itemId, itemKind) {
+  const stat = state.itemStats[getStatKey(itemId, itemKind)];
+  const required = getRequiredSkills(itemKind);
+  if (!stat) return required[0];
+  return [...required].sort((a, b) => (stat.skills?.[a]?.streak || 0) - (stat.skills?.[b]?.streak || 0))[0];
+}
+
+function buildDailyQuestions(learnedItems, mistakeQuestions) {
+  const dueQuestions = buildDueReviewQuestions(learnedItems, 5);
+  return uniqueQuestions([...mistakeQuestions.slice(0, 2), ...dueQuestions]).slice(0, 7);
+}
+
+function buildDueReviewQuestions(items, limit) {
+  const due = items
+    .map((item) => ({ item, score: getItemMasteryScore(item.id, item.itemKind) }))
     .sort((a, b) => a.score - b.score)
     .slice(0, limit);
   const questions = [];
-  words.forEach(({ item }, index) => {
-    if (index % 3 === 0) questions.push(listenQuestion(item, unit.words, { unitId: unit.id, badge: "到期复习" }));
-    else if (index % 3 === 1) questions.push(spellQuestion(item, { unitId: unit.id, badge: "到期复习" }));
-    else questions.push(listenQuestion(item, unit.words, { unitId: unit.id, badge: "认词复习", skill: "recognition" }));
+  due.forEach(({ item }, index) => {
+    questions.push(questionForLearnedItem(item, { badge: index ? "到期复习" : "核心复习" }));
   });
   return questions;
 }
@@ -1188,6 +1634,14 @@ function getItemStat(itemId, itemKind = "word") {
       correct: 0,
       streak: 0,
       skills: {},
+      questionTypes: {},
+      firstSeenAt: null,
+      lastPracticedAt: null,
+      learnedAt: null,
+      stage: "刚学会",
+      learningStatus: "unseen",
+      testStatus: "untested",
+      masteryStatus: "notStable",
       updatedAt: null
     };
   }
@@ -1197,15 +1651,29 @@ function getItemStat(itemId, itemKind = "word") {
 function updateItemStats(question, ok) {
   if (!question.itemId || !question.skill) return;
   const stat = getItemStat(question.itemId, question.itemKind);
+  const now = new Date().toISOString();
   stat.attempts += 1;
   stat.correct += ok ? 1 : 0;
   stat.streak = ok ? stat.streak + 1 : 0;
-  stat.updatedAt = new Date().toISOString();
+  stat.firstSeenAt ||= now;
+  stat.lastPracticedAt = now;
+  stat.updatedAt = now;
+  stat.questionTypes[question.type] = (stat.questionTypes[question.type] || 0) + 1;
   const current = stat.skills[question.skill] || { streak: 0, attempts: 0, correct: 0 };
   current.attempts += 1;
   current.correct += ok ? 1 : 0;
   current.streak = ok ? Math.min(3, current.streak + 1) : 0;
   stat.skills[question.skill] = current;
+  stat.stage = getChildStageLabel(stat);
+  stat.learningStatus = (state.learnedItems[question.itemId] || question.reviewUnit) ? "newLearned" : "learning";
+  stat.testStatus = "tested";
+  stat.masteryStatus = getMasteryStatus(stat);
+  if (state.learnedItems[question.itemId]) {
+    state.learnedItems[question.itemId].stage = stat.stage;
+    state.learnedItems[question.itemId].lastPracticedAt = now;
+    state.learnedItems[question.itemId].testStatus = stat.testStatus;
+    state.learnedItems[question.itemId].masteryStatus = stat.masteryStatus;
+  }
 }
 
 function getRequiredSkills(itemKind) {
@@ -1225,6 +1693,24 @@ function getItemMasteryScore(itemId, itemKind = "word") {
 
 function isItemMastered(itemId, itemKind = "word") {
   return getItemMasteryScore(itemId, itemKind) >= 1;
+}
+
+function getMasteryStatus(stat) {
+  const required = getRequiredSkills(stat.itemKind);
+  const testedSkills = Object.keys(stat.skills || {}).filter((skill) => (stat.skills[skill]?.attempts || 0) > 0);
+  const allSkillsStable = required.every((skill) => (stat.skills?.[skill]?.streak || 0) >= 3);
+  if (allSkillsStable && stat.streak >= 3) return "stableMastered";
+  if (stat.streak >= 3 && testedSkills.length >= Math.max(1, required.length - 1)) return "temporaryMastered";
+  if ((stat.correct || 0) > 0 || testedSkills.length) return "practicing";
+  return "notStable";
+}
+
+function getChildStageLabel(stat) {
+  if (!stat?.attempts) return "刚学会";
+  if (getMasteryStatus(stat) === "stableMastered") return "已经很稳";
+  if (stat.streak >= 3) return "越来越熟";
+  if (stat.correct > 0) return "练稳中";
+  return "刚学会";
 }
 
 function getUnitMastery(unit) {
@@ -1250,6 +1736,14 @@ function updateMistakeProgress(question, ok) {
   if (!existing || !ok) return;
   existing.correctStreak = (existing.correctStreak || 0) + 1;
   existing.updatedAt = new Date().toISOString();
+  existing.retestRecords ||= [];
+  existing.retestRecords.push({
+    at: existing.updatedAt,
+    mode: currentPractice?.mode,
+    skill: question.skill,
+    questionType: question.type,
+    correct: true
+  });
   if (existing.correctStreak >= 3) {
     existing.status = "mastered";
     existing.priority = 0;
@@ -1279,11 +1773,17 @@ function updateUnitProgressAfterPractice(practice, score) {
   if (practice.mode === "preview-practice") {
     state.unitProgress[unit.id] = "quiz-ready";
   }
-  if (["preview-quiz", "unit", "daily"].includes(practice.mode)) {
+  if (practice.mode === "preview-quiz") {
+    const chunks = getLearningChunks(unit);
+    const progress = getLessonProgress(unit.id);
+    progress.chunkIndex = Math.min((progress.chunkIndex || 0) + 1, chunks.length - 1);
+    state.unitProgress[unit.id] = progress.chunkIndex >= chunks.length - 1 ? "consolidating" : "previewing";
+  }
+  if (["preview-quiz", "unit", "daily", "self-review"].includes(practice.mode)) {
     const mastery = getUnitMastery(unit);
     if (mastery.percent >= 100 && score === 100 && getActiveMistakes().every((item) => item.unitId !== unit.id)) {
       state.unitProgress[unit.id] = "mastered";
-    } else {
+    } else if (state.unitProgress[unit.id] !== "previewing") {
       state.unitProgress[unit.id] = "consolidating";
     }
   }
@@ -1331,6 +1831,10 @@ function handleRecordingComplete() {
     mode: "speaking",
     question: currentSpeakingItem.en,
     correct: result.total >= 82,
+    itemId: currentSpeakingItem.id,
+    itemKind: currentSpeakingItem.en?.includes(" ") ? "sentence" : "word",
+    skill: "speaking",
+    scoringStatus: state.settings.speechProvider === "demo" ? "simulated" : "scored",
     score: result,
     at: new Date().toISOString()
   });
@@ -1382,13 +1886,25 @@ function addMistake(question, reason) {
   const key = question.answer || question.word?.en || question.prompt;
   const existing = state.mistakes.find((item) => item.en === key || item.answer === key || item.itemId === question.itemId);
   if (existing) {
+    const now = new Date().toISOString();
     existing.times += 1;
     existing.reason = reason;
     existing.status = "active";
     existing.priority = Math.min(5, (existing.priority || 1) + 1);
     existing.correctStreak = 0;
-    existing.updatedAt = new Date().toISOString();
+    existing.lastWrongAt = now;
+    existing.updatedAt = now;
+    existing.retestRecords ||= [];
+    existing.retestRecords.push({
+      at: now,
+      mode: currentPractice?.mode || existing.sourceMode || "manual",
+      skill: question.skill,
+      questionType: question.type,
+      correct: false
+    });
+    existing.sourceMode = currentPractice?.mode || existing.sourceMode || "manual";
   } else {
+    const now = new Date().toISOString();
     state.mistakes.push({
       id: `m-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       en: key,
@@ -1397,16 +1913,54 @@ function addMistake(question, reason) {
       itemId: question.itemId,
       itemKind: question.itemKind,
       unitId: question.unitId,
+      chunkId: question.chunkId || currentLesson?.chunkId,
       skill: question.skill,
+      sourceMode: currentPractice?.mode || "manual",
       reason,
       times: 1,
+      retestRecords: [],
       correctStreak: 0,
       priority: 2,
       status: "active",
-      updatedAt: new Date().toISOString()
+      firstWrongAt: now,
+      lastWrongAt: now,
+      updatedAt: now
     });
   }
   saveState();
+}
+
+function buildExportSummary() {
+  const records = state.records || [];
+  const stats = Object.values(state.itemStats || {});
+  const countBy = (field, fallback = "unknown") =>
+    stats.reduce((result, stat) => {
+      const key = stat[field] || fallback;
+      result[key] = (result[key] || 0) + 1;
+      return result;
+    }, {});
+  const recent = records.filter((record) => typeof record.correct === "boolean").slice(-30);
+  const correct = recent.filter((record) => record.correct).length;
+  return {
+    records: records.length,
+    practiceRecords: records.filter((record) => record.mode !== "speaking").length,
+    speakingRecords: records.filter((record) => record.mode === "speaking").length,
+    learnedItems: Object.keys(state.learnedItems || {}).length,
+    trackedItems: stats.length,
+    activeWeaknesses: (state.mistakes || []).filter((item) => item.status !== "mastered").length,
+    masteredWeaknesses: (state.mistakes || []).filter((item) => item.status === "mastered").length,
+    recentAccuracy: recent.length ? Math.round((correct / recent.length) * 100) : null,
+    completedSessions: (state.sessions || []).length,
+    learningStatus: countBy("learningStatus", "unseen"),
+    testStatus: countBy("testStatus", "untested"),
+    masteryStatus: countBy("masteryStatus", "notStable"),
+    skillCoverage: stats.reduce((result, stat) => {
+      Object.keys(stat.skills || {}).forEach((skill) => {
+        result[skill] = (result[skill] || 0) + 1;
+      });
+      return result;
+    }, {})
+  };
 }
 
 function inferReason(question) {
@@ -1416,17 +1970,37 @@ function inferReason(question) {
 }
 
 function exportRecords() {
+  const exportedAt = new Date();
+  const exportDate = formatLocalDate(exportedAt);
+  const studentName = state.studentName || "";
   const payload = {
     appVersion: APP_VERSION,
-    package: data.title,
-    exportedAt: new Date().toISOString(),
+    student: {
+      name: studentName,
+      displayName: studentName || "未填写"
+    },
+    package: {
+      id: data.id,
+      title: data.title,
+      version: data.version,
+      kind: data.packageKind,
+      status: data.status,
+      generatedAt: data.generatedAt || null
+    },
+    exportedAt: exportedAt.toISOString(),
+    exportedAtLocal: exportedAt.toLocaleString("zh-CN", { hour12: false }),
+    exportDate,
+    studyDate: exportDate,
+    timezoneOffsetMinutes: exportedAt.getTimezoneOffset(),
+    summary: buildExportSummary(),
     state
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `xiaobao-study-records-${new Date().toISOString().slice(0, 10)}.json`;
+  const namePart = studentName ? `${sanitizeFilePart(studentName)}-` : "";
+  link.download = `xiaobao-study-records-${namePart}${exportDate}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -1486,9 +2060,10 @@ function pickEnglishVoice() {
 
   const lower = (voice) => `${voice.name} ${voice.lang}`.toLowerCase();
   return (
-    availableVoices.find((voice) => voice.lang?.toLowerCase().startsWith("en-gb") && /daniel|serena|susan|arthur|martha|kate|uk|british/.test(lower(voice))) ||
+    availableVoices.find((voice) => voice.lang?.toLowerCase().startsWith("en-gb") && FEMALE_BRITISH_VOICES.test(lower(voice))) ||
+    availableVoices.find((voice) => voice.lang?.toLowerCase().startsWith("en-gb") && !MALE_VOICES.test(lower(voice))) ||
+    availableVoices.find((voice) => FEMALE_BRITISH_VOICES.test(lower(voice))) ||
     availableVoices.find((voice) => voice.lang?.toLowerCase().startsWith("en-gb")) ||
-    availableVoices.find((voice) => /daniel|serena|susan|arthur|martha|kate|british/.test(lower(voice))) ||
     availableVoices.find((voice) => voice.lang?.toLowerCase().startsWith("en-")) ||
     null
   );
@@ -1536,7 +2111,7 @@ async function speakText(text, options = {}) {
   const voice = pickEnglishVoice();
   utterance.lang = voice?.lang || "en-GB";
   utterance.voice = voice || null;
-  utterance.rate = options.rate ?? state.settings.speechRate ?? 0.64;
+  utterance.rate = options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE;
   utterance.pitch = 1;
   utterance.volume = 1;
   return new Promise((resolve) => {
@@ -1556,7 +2131,7 @@ async function speakText(text, options = {}) {
     const maxTimer = setTimeout(finish, 15000);
     utterance.onstart = () => {
       started = true;
-      if (runId === speechRunId) showToast(`正在播放：${text}`);
+      if (runId === speechRunId) showToast(options.playingMessage || "正在播放标准音");
     };
     utterance.onend = finish;
     utterance.onerror = (event) => {
@@ -1573,11 +2148,11 @@ function sleep(ms) {
 }
 
 async function speakLikeTeacher(text, options = {}) {
-  const rate = options.rate ?? state.settings.speechRate ?? 0.64;
+  const rate = options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE;
   if (!options.silentToast) showToast("正在准备播放...");
   await speakText(text, { rate });
   await sleep(700);
-  await speakText(text, { rate: Math.max(0.5, rate - 0.03) });
+  await speakText(text, { rate: Math.max(SLOW_SPEECH_RATE, rate - 0.04) });
 }
 
 async function speakLessonList(texts) {
@@ -1597,6 +2172,21 @@ async function withPlaybackButton(button, action) {
   } finally {
     button.disabled = false;
     button.textContent = originalText;
+  }
+}
+
+async function withPlaybackLabel(button, label, action) {
+  const indicator = label || button;
+  const originalText = indicator.textContent;
+  button.disabled = true;
+  button.classList.add("is-playing");
+  indicator.textContent = "播放中";
+  try {
+    await action();
+  } finally {
+    button.disabled = false;
+    button.classList.remove("is-playing");
+    indicator.textContent = originalText;
   }
 }
 
@@ -1642,14 +2232,17 @@ function testRow(title, meta, mode) {
 }
 
 function unitRow(unit) {
+  const chunks = getLearningChunks(unit);
+  const progress = getLessonProgress(unit.id);
+  const current = chunks[Math.min(progress.chunkIndex || 0, chunks.length - 1)];
   return `
     <div class="unit-row">
       <div>
         <strong>${unit.title}</strong>
-        <p class="muted" style="margin-bottom:8px">${unit.focus.join(" / ")}</p>
-        <div class="chip-row">${unit.words.slice(0, 5).map((word) => `<span class="chip">${word.en}</span>`).join("")}</div>
+        <p class="muted" style="margin-bottom:8px">${current ? `当前小课：${current.title}` : unit.focus.join(" / ")}</p>
+        <div class="chip-row">${(current?.words || unit.words).slice(0, 5).map((word) => `<span class="chip">${word.en}</span>`).join("")}</div>
       </div>
-      <button class="secondary-button" data-lesson="${unit.id}">上预习课</button>
+      <button class="secondary-button" data-lesson="${unit.id}">开始学习</button>
     </div>
   `;
 }
@@ -1677,13 +2270,24 @@ function flowStep(index, title, meta) {
 }
 
 function reviewCatalogRow(item) {
+  const ready = item.id === "G5A" || getVerifiedReviewUnits().some((unit) => unit.catalogId === item.id || unit.bookId === item.id);
   return `
     <div class="report-item">
       <span>
         <strong>${item.title}</strong>
         <br><span class="muted">${item.focus.join(" / ")}</span>
       </span>
-      <span class="badge amber">${item.status}</span>
+      ${ready ? `<span class="badge">可复习</span>` : `<span class="badge amber">全书核验中</span>`}
+    </div>
+  `;
+}
+
+function freeReviewCard(item, ready) {
+  return `
+    <div class="card">
+      <h3>${item.title}</h3>
+      <p class="muted">${item.focus.join(" / ")}</p>
+      <button class="secondary-button" data-review="${item.id}" ${ready ? "" : "disabled"}>${ready ? "开始自主复习" : "完整核验后开放"}</button>
     </div>
   `;
 }
@@ -1756,8 +2360,10 @@ function modeTitle(mode) {
     "start-spelling": "拼词训练",
     "start-sentence": "句型训练",
     "preview-practice": "预习轻练习",
-    "preview-quiz": "预习小测",
-    "review-total": "总复习"
+    "preview-quiz": "小测收尾",
+    "review-total": "总复习",
+    "self-review": "自主复习",
+    warmup: "旧知热身"
   }[mode] || "练习";
 }
 
@@ -1783,9 +2389,9 @@ function bindRouteLinks(root) {
 }
 
 function updatePackageMeta() {
-  document.querySelector("#syncTitle").textContent = data.title;
+  document.querySelector("#syncTitle").textContent = "今日学习包";
   const statusLabel = materialStatusText();
-  document.querySelector("#syncMeta").textContent = `v${data.version} · ${statusLabel}`;
+  document.querySelector("#syncMeta").textContent = statusLabel;
 }
 
 function showToast(message) {
@@ -1798,14 +2404,29 @@ function showToast(message) {
 function loadState() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return {
+    const nextState = {
       ...defaultState,
       ...stored,
+      learningPackageVersion: stored?.learningPackageVersion || "",
+      contentHash: stored?.contentHash || "",
+      cachedLearningPackage: stored?.cachedLearningPackage || null,
+      updateLog: stored?.updateLog || [],
+      studentName: stored?.studentName || "",
       settings: { ...defaultState.settings, ...(stored?.settings || {}) },
       unitProgress: { ...defaultState.unitProgress, ...(stored?.unitProgress || {}) },
+      lessonProgress: { ...defaultState.lessonProgress, ...(stored?.lessonProgress || {}) },
+      learnedItems: stored?.learnedItems || {},
+      selectedReview: stored?.selectedReview || null,
       itemStats: stored?.itemStats || {},
       sessionSummaries: stored?.sessionSummaries || []
     };
+    if (nextState.settings.speechProfileVersion !== SPEECH_PROFILE_VERSION) {
+      nextState.settings.speechRate = DEFAULT_SPEECH_RATE;
+      nextState.settings.speechVoiceURI = "";
+      nextState.settings.speechAccent = "en-GB";
+      nextState.settings.speechProfileVersion = SPEECH_PROFILE_VERSION;
+    }
+    return nextState;
   } catch {
     return { ...defaultState };
   }
@@ -1817,6 +2438,113 @@ function saveState() {
 
 function shuffle(items) {
   return [...items].sort(() => Math.random() - 0.5);
+}
+
+function uniqueValues(items) {
+  return [...new Set(items.filter(Boolean))];
+}
+
+function formatLocalDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function sanitizeFilePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, "-")
+    .slice(0, 32);
+}
+
+function validateLatestManifest(manifest) {
+  if (!manifest || typeof manifest !== "object") return { ok: false, reason: "latest-learning-package.json 格式错误" };
+  const required = ["schemaVersion", "learningPackageVersion", "contentHash", "packageUrl"];
+  const missing = required.filter((key) => !manifest[key]);
+  if (missing.length) return { ok: false, reason: `latest 缺少字段：${missing.join(", ")}` };
+  if (!String(manifest.schemaVersion).startsWith("1.")) return { ok: false, reason: `不支持的 schemaVersion：${manifest.schemaVersion}` };
+  if (!/^sha256-[a-f0-9]{64}$/i.test(manifest.contentHash)) return { ok: false, reason: "contentHash 格式错误" };
+  return { ok: true };
+}
+
+async function validateDownloadedPackage(packageData, manifest) {
+  const baseValidation = validateLearningPackage(packageData);
+  if (!baseValidation.ok) return baseValidation;
+  const version = getPackageVersion(packageData);
+  if (version !== manifest.learningPackageVersion) {
+    return { ok: false, reason: `学习包版本不一致：${version || "空"} / ${manifest.learningPackageVersion}` };
+  }
+  const actualHash = await computeContentHash(packageData);
+  if (actualHash !== manifest.contentHash) return { ok: false, reason: "contentHash 校验失败" };
+  return { ok: true };
+}
+
+function validateLearningPackage(packageData) {
+  if (!packageData || typeof packageData !== "object") return { ok: false, reason: "学习包为空或格式错误" };
+  const required = ["id", "version", "title", "packageKind", "status", "studyPackage", "units"];
+  const missing = required.filter((key) => packageData[key] === undefined || packageData[key] === null || packageData[key] === "");
+  if (missing.length) return { ok: false, reason: `学习包缺少字段：${missing.join(", ")}` };
+  if (packageData.packageKind !== "tablet-learning-package") return { ok: false, reason: "学习包类型错误" };
+  if (!Array.isArray(packageData.units)) return { ok: false, reason: "学习包 units 不是数组" };
+  if (packageData.schemaVersion && !String(packageData.schemaVersion).startsWith("1.")) {
+    return { ok: false, reason: `不支持的学习包 schemaVersion：${packageData.schemaVersion}` };
+  }
+  return { ok: true };
+}
+
+function getPackageVersion(packageData) {
+  return packageData?.learningPackageVersion || packageData?.version || "";
+}
+
+async function safeContentHash(packageData) {
+  try {
+    return await computeContentHash(packageData);
+  } catch {
+    return packageData?.contentHash || "";
+  }
+}
+
+async function computeContentHash(packageData) {
+  if (!globalThis.crypto?.subtle) throw new Error("当前浏览器不支持 hash 校验");
+  const encoded = new TextEncoder().encode(stableStringify(withoutHashFields(packageData)));
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", encoded);
+  const hex = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `sha256-${hex}`;
+}
+
+function withoutHashFields(value) {
+  if (Array.isArray(value)) return value.map(withoutHashFields);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "contentHash")
+      .map(([key, item]) => [key, withoutHashFields(item)])
+  );
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function latestUpdateSucceeded() {
+  const latest = state.updateLog?.[0];
+  return !latest || latest.success;
+}
+
+function updateStatusText() {
+  const latest = state.updateLog?.[0];
+  if (!latest) return "启动时自动检查 latest-learning-package.json";
+  const version = latest.onlineVersion ? `线上 ${latest.onlineVersion}` : "线上未取得";
+  return `${version}；本地 ${latest.localVersion || "未知"}；${latest.success ? latest.reason : `未更新，${latest.reason}`}`;
 }
 
 function normalize(value) {

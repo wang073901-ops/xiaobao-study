@@ -1,4 +1,4 @@
-const CACHE_NAME = "smart-study-v0.7.0";
+const CACHE_NAME = "smart-study-v1.1.0";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -6,6 +6,7 @@ const APP_SHELL = [
   "app/styles.css",
   "app/main.js",
   "assets/app-icon.svg",
+  "data/latest-learning-package.json",
   "data/english-5a-demo.json"
 ];
 
@@ -25,6 +26,21 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  const isLearningPackageRequest =
+    url.pathname.endsWith("/data/latest-learning-package.json") || url.pathname.endsWith("/data/english-5a-demo.json");
+  if (isLearningPackageRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
