@@ -22,7 +22,7 @@
     "handoff": "handoff/learning-plan-handoff.md",
     "appCodeVersionModified": false,
     "uploadStatus": "uploaded",
-    "uploadedAt": "2026-07-05T15:59:00.564Z",
+    "uploadedAt": "2026-07-05T16:06:53.138Z",
     "publicManifestUrl": "https://wang073901-ops.github.io/xiaobao-study/data/latest-learning-package.json",
     "publicPackageUrl": "https://wang073901-ops.github.io/xiaobao-study/data/packages/xiaobao-english-learning-pack-2026-07-05-2308.json"
   },
@@ -31,5 +31,5 @@
     "includesReportsDirectory": false,
     "githubPagesPolicy": "Only publish learning package and manifest; never publish data/reports."
   },
-  "contentHash": "f777dd39a6603a79b717290bac3d6e411c1e6746e799b17d9b33613dd5543664"
+  "contentHash": "dc1c1646200825ea6c7e9dc7f3593ac64dc97cc9f085fef34c5ac654e7ca806a"
 }
