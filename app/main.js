@@ -40,6 +40,7 @@ const defaultState = {
     "5A-U1": { chunkIndex: 0 }
   },
   selectedReview: null,
+  selectedScope: null,
   unitProgress: {
     "5A-U1": "previewing"
   },
@@ -264,6 +265,65 @@ function getCurrentStudyUnit() {
   return getNextPreviewUnit() || getFirstVerifiedUnit();
 }
 
+function getScopedCatalog() {
+  return data?.scopedCatalog || { scopes: [], items: [], questions: [] };
+}
+
+function getScopeById(scopeId) {
+  return getScopedCatalog().scopes?.find((scope) => scope.scopeId === scopeId) || null;
+}
+
+function getBookReviewScopes() {
+  const scopes = getScopedCatalog().scopes || [];
+  return ["book-3A", "book-3B", "book-4A", "book-4B"]
+    .map((scopeId) => scopes.find((scope) => scope.scopeId === scopeId))
+    .filter(Boolean);
+}
+
+function getFiveAUnitScopes() {
+  return (getScopedCatalog().scopes || [])
+    .filter((scope) => scope.scopeType === "fiveAUnit" && scope.appVisible !== false)
+    .sort((a, b) => String(a.unitId || a.scopeId).localeCompare(String(b.unitId || b.scopeId), "en", { numeric: true }));
+}
+
+function scopeFromUnit(unit) {
+  if (!unit) return null;
+  const catalogScope = getScopeById(unit.id);
+  return {
+    type: "unitLearning",
+    scopeId: catalogScope?.scopeId || unit.id,
+    scopeType: catalogScope?.scopeType || "fiveAUnit",
+    bookId: unit.bookId || "5A",
+    unitId: unit.id,
+    sourceLabel: catalogScope?.title || unit.title,
+    sourceMode: "unit_learning"
+  };
+}
+
+function scopeFromCatalog(scope) {
+  if (!scope) return null;
+  const sourceMode = {
+    bookReview: "book_review",
+    mixedReview: "mixed_review",
+    fiveAUnit: "unit_learning",
+    weaknessSpecial: "weakness_practice"
+  }[scope.scopeType] || "scope_practice";
+  return {
+    type: scope.scopeType === "fiveAUnit" ? "unitLearning" : scope.scopeType,
+    scopeId: scope.scopeId,
+    scopeType: scope.scopeType,
+    bookId: scope.bookId || null,
+    unitId: scope.unitId || null,
+    sourceLabel: scope.title,
+    sourceMode
+  };
+}
+
+function setSelectedScope(scope) {
+  state.selectedScope = scope;
+  saveState();
+}
+
 function getUnitById(unitId) {
   return getAllPracticeUnits().find((unit) => unit.id === unitId) || null;
 }
@@ -439,6 +499,31 @@ function isItemLearned(itemId) {
   return Boolean(getLearnedEntry(itemId));
 }
 
+function getCatalogItem(itemId) {
+  return (getScopedCatalog().items || []).find((item) => item.itemId === itemId) || null;
+}
+
+function decoratePracticeItem(item, unit, extra = {}) {
+  const catalogItem = getCatalogItem(item.id);
+  return {
+    ...item,
+    bookId: unit.bookId || catalogItem?.bookId || inferBookId({ itemId: item.id, unitId: unit.id }),
+    unitId: unit.id,
+    scopeIds: catalogItem?.scopeIds || [],
+    sourceMode: extra.sourceMode,
+    ...extra
+  };
+}
+
+function isItemInScope(item, scope) {
+  if (!scope) return true;
+  if (scope.scopeId === "weakness-special") return true;
+  if (scope.itemIds?.length && !scope.itemIds.includes(item.id)) return false;
+  if (scope.bookId && item.bookId && scope.bookId !== item.bookId) return false;
+  if (scope.unitId && item.unitId && scope.unitId !== item.unitId) return false;
+  return true;
+}
+
 function getLearnedQuestionItems(filter = {}) {
   const items = [];
   getVerifiedUnits().forEach((unit) => {
@@ -452,7 +537,7 @@ function getLearnedQuestionItems(filter = {}) {
       if (!entry) return;
       if (filter.unitId && filter.unitId !== unit.id) return;
       if (filter.chunkId && filter.chunkId !== entry.chunkId) return;
-      items.push({ ...item, unitId: unit.id, chunkId: entry.chunkId });
+      items.push(decoratePracticeItem(item, unit, { chunkId: entry.chunkId }));
     });
   });
   return items;
@@ -468,9 +553,17 @@ function getReviewQuestionItems(filter = {}) {
       ...(unit.phrases || []).map((item) => ({ ...item, itemKind: "phrase" })),
       ...(unit.sentences || []).map((item) => ({ ...item, itemKind: "sentence" }))
     ];
-    all.forEach((item) => items.push({ ...item, unitId: unit.id, catalogId: unit.catalogId, reviewUnit: true }));
+    all.forEach((item) => items.push(decoratePracticeItem(item, unit, { catalogId: unit.catalogId, reviewUnit: true })));
   });
   return items;
+}
+
+function getQuestionItemsForScope(scopeId) {
+  const scope = getScopeById(scopeId);
+  if (!scope) return [];
+  if (scope.scopeType === "fiveAUnit") return getLearnedQuestionItems({ unitId: scope.unitId || scope.scopeId });
+  const reviewItems = getReviewQuestionItems();
+  return reviewItems.filter((item) => isItemInScope(item, scope));
 }
 
 function getWarmupQuestions() {
@@ -534,7 +627,7 @@ function renderHome() {
   appViews.home.innerHTML = `
     <div class="hero-band">
       <section class="today-plan">
-        <p class="eyebrow">Mini 今日下发计划</p>
+        <p class="eyebrow">今日学习</p>
         <h2>${hasPreview ? "先学一点，再练稳，最后小测收尾" : "今天做一轮已学总复习"}</h2>
         <p class="hero-copy">目标是每个核心点最终 100% 掌握。不会的先记下来，后面会换一种方式再见它。</p>
         <div class="task-list">
@@ -572,7 +665,7 @@ function renderHome() {
         <span class="badge">重点</span>
         <div>
           <h3>英语</h3>
-          <p class="muted">执行 Mini 下发的已核验学习包</p>
+          <p class="muted">按今天的任务开始学习</p>
         </div>
       </button>
       <button class="card subject-tile disabled" disabled>
@@ -597,16 +690,6 @@ function renderHome() {
         ${trackCard("即将学习预习", "五年级上册", "单词预习 / 课文听读 / 核心句型 / 听力场景 / 拼写听写 / 单元小测", "preview")}
       </div>
     </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>今日安排依据</h2>
-      <div class="report-list">
-        ${reportItem("学习包", materialReady ? "Mini 已生成当前可学包，仅开放已核验内容" : "Mini 资料校对中，学习入口已锁定", materialReady ? "badge" : "badge amber")}
-        ${reportItem("优先级 1", weakCount ? `${weakCount} 个小漏洞会穿插复现` : "暂无高优先小漏洞", weakCount ? "badge amber" : "badge")}
-        ${reportItem("优先级 2", `${mastery.pending} 个核心点未达 100% 掌握`, mastery.pending ? "badge amber" : "badge")}
-        ${reportItem("推进规则", "Unit 核心词句全部 100% 掌握后，再进入下一单元", "badge blue")}
-        ${reportItem("平板使用", "不需要每天连 Mini；有网时同步记录，Mini 再生成下一轮学习包", "badge blue")}
-      </div>
-    </section>
   `;
 
   appViews.home.querySelector("[data-action='start-learning']").addEventListener("click", () => {
@@ -622,26 +705,25 @@ function renderHome() {
 function renderEnglish() {
   const materialReady = isMaterialVerified();
   const verifiedUnits = getVerifiedUnits();
+  const bookScopes = getBookReviewScopes();
+  const fiveAUnitScopes = getFiveAUnitScopes();
   const reviewReady = getVerifiedReviewUnits().length > 0;
   const nextPreviewUnit = getNextPreviewUnit() || getFirstVerifiedUnit();
   const nextChunk = nextPreviewUnit ? getCurrentLearningChunk(nextPreviewUnit) : null;
-  const learnedFiveA = getLearnedQuestionItems().filter((item) => item.unitId?.startsWith("5A"));
   appViews.english.innerHTML = `
     <div class="grid two" style="margin-bottom:16px">
       <section class="panel">
         <h2>三四年级总复习</h2>
-        <p class="muted">三四年级必须等单词表、句型、课文和书面栏目全书核验完成后开放。已核验的 Story time 先留在 Mini 资料中心，不直接给孩子练。</p>
         <div class="report-list">
-          ${data.reviewCatalog.map((item) => reviewCatalogRow(item)).join("")}
+          ${bookScopes.length ? bookScopes.map((scope) => reviewScopeRow(scope)).join("") : data.reviewCatalog.map((item) => reviewCatalogRow(item)).join("")}
         </div>
         <div class="button-row" style="margin-top:14px">
-          <button class="secondary-button" data-start="review-total" ${reviewReady ? "" : "disabled"}>${reviewReady ? "开始三四年级总复习" : "待完整核验后开放"}</button>
+          <button class="secondary-button" data-scope="review-mixed-3-4" ${reviewReady ? "" : "disabled"}>${reviewReady ? "开始三四年级总复习" : "待开放"}</button>
           <button class="secondary-button" data-start="mistakes" ${materialReady ? "" : "disabled"}>小漏洞专项</button>
         </div>
       </section>
       <section class="panel">
         <h2>五上新课学习</h2>
-        <p class="muted">顺序按学校课堂来：旧知热身、新课导入、英音领读、词句理解、课文听读、轻练习、小测。</p>
         <div class="chip-row">
           ${data.learningTracks[1].sections.map((item) => `<span class="chip">${item}</span>`).join("")}
         </div>
@@ -654,12 +736,14 @@ function renderEnglish() {
           <button class="primary-button" data-lesson="${nextPreviewUnit?.id || ""}" ${nextPreviewUnit ? "" : "disabled"}>${nextPreviewUnit ? `开始 ${nextPreviewUnit.title.replace(/^Unit\\s+/i, "Unit ")} 学习` : "学习包生成中"}</button>
           <button class="secondary-button" data-start="daily" ${materialReady ? "" : "disabled"}>每日总练习</button>
         </div>
+        <div class="unit-list compact-list" style="margin-top:14px">
+          ${fiveAUnitScopes.length ? fiveAUnitScopes.map((scope) => unitScopeRow(scope)).join("") : verifiedUnits.map(unitRow).join("")}
+        </div>
       </section>
     </div>
     <div class="grid two">
       <section class="panel">
         <h2>学习路径</h2>
-        <p class="muted">每个核心点都要听、认、拼、用全部过关；不会的不会卡住孩子，会被放进后面的滚动复习。</p>
         <div class="grid two">
           ${pathCard("先听", "听单词、短语、句子", "start-listening")}
           ${pathCard("再认", "听音选词、看中文选英文", "start-recognition")}
@@ -676,21 +760,6 @@ function renderEnglish() {
         </div>
       </section>
     </div>
-    <section class="panel" style="margin-bottom:16px">
-      <h2>自主复习</h2>
-      <p class="muted">家长或孩子可选已开放课本/单元复习，不设时间限制；答错内容和今日学习进入同一个小漏洞池。</p>
-      <div class="grid two">
-        ${data.reviewCatalog
-          .filter((item) => item.id !== "G5A")
-          .map((item) => freeReviewCard(item, getVerifiedReviewUnits().some((unit) => unit.catalogId === item.id)))
-          .join("")}
-        ${freeReviewCard({ id: "5a-learned", title: "五年级上册已学内容", focus: learnedFiveA.length ? [`已学 ${learnedFiveA.length} 个点`] : ["先完成今日学习后开放"] }, learnedFiveA.length > 0)}
-      </div>
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>单元</h2>
-      ${verifiedUnits.length ? verifiedUnits.map(unitRow).join("") : `<div class="card"><h3>资料校对中</h3><p class="muted">核验通过后才会开放单元练习。</p></div>`}
-    </section>
   `;
 
   appViews.english.querySelectorAll("[data-start]").forEach((button) => {
@@ -702,6 +771,9 @@ function renderEnglish() {
       saveState();
       startPractice("self-review");
     });
+  });
+  appViews.english.querySelectorAll("[data-scope]").forEach((button) => {
+    button.addEventListener("click", () => startScopedPractice(button.dataset.scope));
   });
   appViews.english.querySelectorAll("[data-lesson]").forEach((button) => {
     button.addEventListener("click", () => startLesson(button.dataset.lesson));
@@ -879,24 +951,11 @@ function renderParent() {
       </div>
     </section>
     <section class="panel" style="margin-top:16px">
-      <h2>Mini 与平板分工</h2>
+      <h2>学习包状态</h2>
       <div class="report-list">
-        ${reportItem("Mini", delivery.miniRole || "资料中心、备课中心、计划中心", "badge blue")}
-        ${reportItem("平板", delivery.tabletRole || "孩子学习端", "badge")}
-        ${reportItem("完整资料库", data.generatedBy?.fullMaterialLibrary || "留在 Mini 端，不随平板全量下发", "badge blue")}
-        ${reportItem("平板内容", data.generatedBy?.tabletPayload || "当前学习、近期复习、小漏洞回收所需内容", "badge")}
-        ${reportItem("结果回传", delivery.resultReturn || "平板记录结果，联网后回传 Mini，再生成下一轮计划", "badge amber")}
-        ${reportItem("日常连接", "孩子学习时不要求一直连 Mini；有网可同步，没同步也能先做本地包", "badge blue")}
-      </div>
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>当前计划包</h2>
-      <div class="report-list">
-        ${reportItem("范围", studyPackage.scope === "current-unit" ? "当前单元包" : studyPackage.scope || "今日学习包", "badge")}
-        ${reportItem("当前内容", studyPackage.current?.unitId || "待生成", studyPackage.current?.unitId ? "badge blue" : "badge amber")}
+        ${reportItem("当前内容", studyPackage.current?.unitId || "今日学习包", studyPackage.current?.unitId ? "badge blue" : "badge")}
         ${reportItem("目标时长", studyPackage.current?.targetMinutes ? `${studyPackage.current.targetMinutes} 分钟以内` : "按题量控制", "badge")}
-        ${reportItem("时间规则", studyPackage.current?.timingRule || "按题量和预计耗时控制，熟练答完即可下一题，不强制学满。", "badge blue")}
-        ${reportItem("下一包", studyPackage.nextGenerationRule || "学习结果回传后，由 Mini 生成下一轮学习包。", "badge amber")}
+        ${reportItem("导出记录", "学习后可手动导出 JSON，用于生成下一轮学习包", "badge blue")}
       </div>
     </section>
     <div class="grid two" style="margin-top:16px">
@@ -918,40 +977,15 @@ function renderParent() {
         </div>
       </section>
       <section class="panel">
-        <h2>掌握标准</h2>
+        <h2>小漏洞概览</h2>
         <div class="standards-grid">
-          ${standardItem("核心单词", "100%", "会听、会认、会拼")}
-          ${standardItem("核心短语", "100%", "能听懂、能识别")}
-          ${standardItem("核心句型", "100%", "能听懂并会替换使用")}
-          ${standardItem("单元综合", "100%", "日测 / 周测 / 单元测滚动达标")}
+          ${standardItem("当前小漏洞", `${getActiveMistakes().length}`, "所有入口统一汇总")}
+          ${standardItem("最近稳定度", `${calcAccuracy()}%`, "最近练习参考")}
+          ${standardItem("今日错误率", `${todayReport.errorRate}%`, `${todayReport.wrongCount}/${todayReport.answerCount || 0} 题错误`)}
+          ${standardItem("导出范围", exportRangeLabel(), "从上次导出后累计")}
         </div>
-        <p class="support-note">孩子端不显示压迫式结论；家长端严格按 100% 看未掌握点，并由 Mini 安排后续复现。</p>
       </section>
     </div>
-    <section class="panel" style="margin-top:16px">
-      <h2>Mini 端课本资料库</h2>
-      <div class="report-list">
-        ${[
-          "26秋 五上.pdf",
-          "英语_三年级_上册_译林出版社.pdf",
-          "英语_三年级_下册_译林出版社.pdf",
-          "英语_四年级_上册 译林版(1).pdf",
-          "英语 四年级下册 译林版.pdf"
-        ]
-          .map((name) => reportItem(name, "留在 Mini 核验，不全量下发到平板", "badge"))
-          .join("")}
-      </div>
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>生成与校验原则</h2>
-      <div class="report-list">
-        ${reportItem("资料来源", "Mini 端先核验课本完整资料库，再生成平板学习包", "badge blue")}
-        ${reportItem("单词", "英文、中文释义必须能在课本 OCR/词汇表中定位", "badge blue")}
-        ${reportItem("语句", "课文原句、目录句型或 Wrap-up 任务必须逐条核对", "badge blue")}
-        ${reportItem("出题", "平板可按学习包自动出题；实时变式由 Mini/云端生成后下发", "badge blue")}
-        ${reportItem("启用规则", "只开放 verified 内容；未核验资料不进入平板学习包", "badge amber")}
-      </div>
-    </section>
   `;
 
   appViews.parent.querySelector("[data-action='export']").addEventListener("click", exportRecords);
@@ -984,6 +1018,7 @@ function startLesson(unitId) {
     return;
   }
   const unit = data.units.find((item) => item.id === unitId);
+  setSelectedScope(scopeFromUnit(unit));
   const chunk = unit ? getCurrentLearningChunk(unit) : null;
   currentLesson = {
     unitId,
@@ -992,6 +1027,21 @@ function startLesson(unitId) {
   };
   navigate("lesson");
   renderLesson();
+}
+
+function startScopedPractice(scopeId) {
+  const scope = getScopeById(scopeId);
+  if (!scope) {
+    showToast("这个学习范围还没准备好");
+    navigate("english");
+    return;
+  }
+  if (scope.scopeType === "fiveAUnit") {
+    startLesson(scope.unitId || scope.scopeId);
+    return;
+  }
+  setSelectedScope(scopeFromCatalog(scope));
+  startPractice(scope.scopeType === "mixedReview" ? "review-total" : "scope-review");
 }
 
 function renderLesson() {
@@ -1203,6 +1253,7 @@ function startPractice(mode) {
   }
   currentPractice = {
     mode,
+    scope: isScopedPracticeMode(mode) && state.selectedScope ? { ...state.selectedScope } : null,
     index: 0,
     correct: 0,
     total: pool.length,
@@ -1347,13 +1398,20 @@ function handleAnswer(answer, button) {
   state.records.push({
     id: `r-${Date.now()}`,
     mode: currentPractice.mode,
+    scopeType: currentPractice.scope?.scopeType || q.scopeType || null,
+    sourceMode: currentPractice.scope?.sourceMode || q.sourceMode || currentPractice.mode,
+    sourceLabel: currentPractice.scope?.sourceLabel || "",
     question: q.prompt,
     answer,
     expected: q.answer,
     correct: ok,
     itemId: q.itemId,
     itemKind: q.itemKind,
+    bookId: q.bookId || currentPractice.scope?.bookId || inferBookId(q),
+    unitId: q.unitId || currentPractice.scope?.unitId || inferUnitId(q.itemId),
+    scopeId: currentPractice.scope?.scopeId || q.scopeId || null,
     skill: q.skill,
+    questionType: q.type,
     chunkId: q.chunkId || currentLesson?.chunkId,
     learningStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.learningStatus,
     testStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.testStatus,
@@ -1408,6 +1466,8 @@ function buildQuestionPool(mode) {
   const learnedItems = [...reviewItems, ...getLearnedQuestionItems()];
   const learnedForUnit = unit ? getLearnedQuestionItems({ unitId: unit.id }) : learnedItems;
   const mistakeQuestions = getActiveMistakes().slice(0, 5).map(mistakeToQuestion);
+  const selectedScope = isScopedPracticeMode(mode) && state.selectedScope?.scopeId ? getScopeById(state.selectedScope.scopeId) : null;
+  const scopedItems = selectedScope ? getQuestionItemsForScope(selectedScope.scopeId) : [];
 
   if (mode === "warmup") return getWarmupQuestions();
   if (mode === "mistakes") return mistakeQuestions;
@@ -1424,14 +1484,19 @@ function buildQuestionPool(mode) {
     }
     return buildQuestionsFromLearned(learnedForUnit, 12);
   }
+  if (mode === "scope-review") return buildQuestionsFromLearned(scopedItems, 24);
   if (mode === "start-listening") return buildQuestionsFromLearned(learnedItems.filter((item) => ["word", "phrase", "sentence"].includes(item.itemKind)), 6, "listen");
   if (mode === "start-recognition") return buildQuestionsFromLearned(learnedItems, 6, "recognition");
   if (mode === "start-spelling") return buildQuestionsFromLearned(learnedItems.filter((item) => item.itemKind === "word"), 6, "spelling");
   if (mode === "start-sentence") return buildQuestionsFromLearned(learnedItems.filter((item) => item.itemKind === "sentence"), 8, "use");
-  if (mode === "review-total") return buildQuestionsFromLearned(learnedItems, 10);
+  if (mode === "review-total") return buildQuestionsFromLearned(scopedItems.length ? scopedItems : learnedItems, 20);
   if (mode === "weekly") return uniqueQuestions([...mistakeQuestions, ...buildQuestionsFromLearned(learnedItems, 8)]).slice(0, 10);
   if (mode === "unit") return buildQuestionsFromLearned(learnedForUnit, 12);
   return buildDailyQuestions(learnedItems, mistakeQuestions);
+}
+
+function isScopedPracticeMode(mode) {
+  return ["scope-review", "unit-scope", "review-total"].includes(mode) && Boolean(state.selectedScope?.scopeId);
 }
 
 function buildChunkPracticeQuestions(unit, chunk, badge) {
@@ -1571,8 +1636,12 @@ function mistakeToQuestion(item) {
     audioText: item.en || item.answer,
     itemId: item.itemId || item.en || item.answer,
     itemKind: item.itemKind || "word",
+    bookId: item.bookId,
     unitId: item.unitId,
     chunkId: item.chunkId,
+    scopeId: item.scopeId,
+    scopeType: item.scopeType,
+    sourceMode: item.sourceMode,
     skill: isListening ? "listen" : item.skill || "spelling",
     autoPlay: isListening,
     source: item
@@ -1587,10 +1656,15 @@ function questionForLearnedItem(item, options = {}) {
   const sentences = learnedInUnit.filter((candidate) => candidate.itemKind === "sentence");
   const skill = options.forcedSkill || pickNextSkill(item.id, item.itemKind);
   const meta = {
+    bookId: item.bookId,
     unitId: item.unitId || unit?.id,
     chunkId: item.chunkId,
     badge: options.badge || "已学复习",
-    reviewUnit: Boolean(item.reviewUnit)
+    reviewUnit: Boolean(item.reviewUnit),
+    scopeIds: item.scopeIds || [],
+    scopeId: options.scopeId || state.selectedScope?.scopeId,
+    scopeType: state.selectedScope?.scopeType,
+    sourceMode: state.selectedScope?.sourceMode
   };
 
   if (item.itemKind === "word") {
@@ -1759,6 +1833,8 @@ function updateMistakeProgress(question, ok) {
   existing.retestRecords.push({
     at: existing.updatedAt,
     mode: currentPractice?.mode,
+    scopeId: currentPractice?.scope?.scopeId || question.scopeId || existing.scopeId || null,
+    scopeType: currentPractice?.scope?.scopeType || question.scopeType || existing.scopeType || null,
     skill: question.skill,
     questionType: question.type,
     correct: true
@@ -1917,11 +1993,17 @@ function addMistake(question, reason) {
     existing.retestRecords.push({
       at: now,
       mode: currentPractice?.mode || existing.sourceMode || "manual",
+      scopeId: currentPractice?.scope?.scopeId || question.scopeId || existing.scopeId || null,
+      scopeType: currentPractice?.scope?.scopeType || question.scopeType || existing.scopeType || null,
       skill: question.skill,
       questionType: question.type,
       correct: false
     });
     existing.sourceMode = currentPractice?.mode || existing.sourceMode || "manual";
+    existing.bookId ||= question.bookId || currentPractice?.scope?.bookId || inferBookId(question);
+    existing.unitId ||= question.unitId || currentPractice?.scope?.unitId || inferUnitId(question.itemId);
+    existing.scopeId ||= currentPractice?.scope?.scopeId || question.scopeId || null;
+    existing.scopeType ||= currentPractice?.scope?.scopeType || question.scopeType || null;
   } else {
     const now = new Date().toISOString();
     state.mistakes.push({
@@ -1931,10 +2013,14 @@ function addMistake(question, reason) {
       answer: question.answer,
       itemId: question.itemId,
       itemKind: question.itemKind,
-      unitId: question.unitId,
+      bookId: question.bookId || currentPractice?.scope?.bookId || inferBookId(question),
+      unitId: question.unitId || currentPractice?.scope?.unitId || inferUnitId(question.itemId),
       chunkId: question.chunkId || currentLesson?.chunkId,
+      scopeId: currentPractice?.scope?.scopeId || question.scopeId || null,
+      scopeType: currentPractice?.scope?.scopeType || question.scopeType || null,
       skill: question.skill,
       sourceMode: currentPractice?.mode || "manual",
+      questionType: question.type,
       reason,
       times: 1,
       retestRecords: [],
@@ -2177,6 +2263,9 @@ function recordToFeishuEvent(record, index) {
     itemId: record.itemId || "",
     bookId: inferBookId(record),
     unitId: record.unitId || inferUnitId(record.itemId),
+    scopeId: record.scopeId || "",
+    scopeType: record.scopeType || "",
+    sourceMode: record.sourceMode || record.mode || "",
     mode,
     questionType: mapQuestionType(record),
     skill: mapSkill(record.skill),
@@ -2185,7 +2274,7 @@ function recordToFeishuEvent(record, index) {
     durationSeconds: record.durationSeconds || 0,
     wrongReason: result === "wrong" ? mapWrongReason(record.wrongReason || inferRecordWrongReason(record)) : "",
     isNewLearning: Boolean(record.learningStatus === "newLearned" || state.learnedItems?.[record.itemId]),
-    isReview: ["review", "warmup", "review-total", "self-review"].includes(record.mode),
+    isReview: ["review", "warmup", "review-total", "self-review", "scope-review"].includes(record.mode),
     isWeaknessReturn: ["mistakes", "weakness"].includes(record.mode),
     chunkId: record.chunkId || "",
     masteryStatus: record.masteryStatus || stat?.masteryStatus || "",
@@ -2245,6 +2334,11 @@ function buildFeishuMistakes(startedAt, endedAt) {
     .map((mistake) => ({
       mistakeId: mistake.id,
       itemId: mistake.itemId || "",
+      bookId: mistake.bookId || inferBookId(mistake),
+      unitId: mistake.unitId || inferUnitId(mistake.itemId),
+      scopeId: mistake.scopeId || "",
+      scopeType: mistake.scopeType || "",
+      sourceMode: mistake.sourceMode || "",
       timestamp: toShanghaiIso(new Date(mistake.lastWrongAt || mistake.updatedAt || Date.now())),
       questionType: mapQuestionType(mistake),
       skill: mapSkill(mistake.skill),
@@ -2545,7 +2639,34 @@ function reviewCatalogRow(item) {
         <strong>${item.title}</strong>
         <br><span class="muted">${item.focus.join(" / ")}</span>
       </span>
-      ${ready ? `<span class="badge">可复习</span>` : `<span class="badge amber">全书核验中</span>`}
+      ${ready ? `<button class="secondary-button compact-button" data-review="${item.id}">开始复习</button>` : `<span class="badge amber">待开放</span>`}
+    </div>
+  `;
+}
+
+function reviewScopeRow(scope) {
+  const ready = getVerifiedReviewUnits().some((unit) => unit.bookId === scope.bookId);
+  return `
+    <div class="report-item">
+      <span>
+        <strong>${scope.title}</strong>
+        <br><span class="muted">${scope.itemCount || scope.itemIds?.length || 0} 个学习点</span>
+      </span>
+      <button class="secondary-button compact-button" data-scope="${scope.scopeId}" ${ready ? "" : "disabled"}>${ready ? "开始复习" : "待开放"}</button>
+    </div>
+  `;
+}
+
+function unitScopeRow(scope) {
+  const unit = getUnitById(scope.unitId || scope.scopeId);
+  const focus = unit?.focus?.slice(0, 3).join(" / ") || `${scope.itemCount || 0} 个学习点`;
+  return `
+    <div class="unit-row">
+      <div>
+        <strong>${scope.title}</strong>
+        <p class="muted" style="margin-bottom:0">${focus}</p>
+      </div>
+      <button class="secondary-button compact-button" data-scope="${scope.scopeId}">开始学习</button>
     </div>
   `;
 }
@@ -2555,7 +2676,7 @@ function freeReviewCard(item, ready) {
     <div class="card">
       <h3>${item.title}</h3>
       <p class="muted">${item.focus.join(" / ")}</p>
-      <button class="secondary-button" data-review="${item.id}" ${ready ? "" : "disabled"}>${ready ? "开始自主复习" : "完整核验后开放"}</button>
+      <button class="secondary-button" data-review="${item.id}" ${ready ? "" : "disabled"}>${ready ? "开始复习" : "待开放"}</button>
     </div>
   `;
 }
@@ -2643,7 +2764,7 @@ function modeTitle(mode) {
     "preview-practice": "预习轻练习",
     "preview-quiz": "小测收尾",
     "review-total": "总复习",
-    "self-review": "自主复习",
+    "self-review": "范围复习",
     warmup: "旧知热身"
   }[mode] || "练习";
 }
@@ -2670,9 +2791,12 @@ function bindRouteLinks(root) {
 }
 
 function updatePackageMeta() {
-  document.querySelector("#syncTitle").textContent = "今日学习包";
+  const syncTitle = document.querySelector("#syncTitle");
+  const syncMeta = document.querySelector("#syncMeta");
+  if (!syncTitle || !syncMeta) return;
+  syncTitle.textContent = "今日学习包";
   const statusLabel = materialStatusText();
-  document.querySelector("#syncMeta").textContent = statusLabel;
+  syncMeta.textContent = statusLabel;
 }
 
 function showToast(message) {
@@ -2699,6 +2823,7 @@ function loadState() {
       lessonProgress: { ...defaultState.lessonProgress, ...(stored?.lessonProgress || {}) },
       learnedItems: stored?.learnedItems || {},
       selectedReview: stored?.selectedReview || null,
+      selectedScope: stored?.selectedScope || null,
       itemStats: stored?.itemStats || {},
       sessionSummaries: stored?.sessionSummaries || []
     };
@@ -2887,7 +3012,7 @@ function updateStatusText() {
 function mapFeishuMode(mode) {
   if (["preview-practice", "start-listening", "start-recognition", "start-spelling", "start-sentence"].includes(mode)) return "practice";
   if (["preview-quiz", "daily", "weekly", "unit", "review-total"].includes(mode)) return "quiz";
-  if (["warmup", "self-review"].includes(mode)) return "review";
+  if (["warmup", "self-review", "scope-review"].includes(mode)) return "review";
   if (mode === "mistakes") return "weakness";
   if (mode === "speaking") return "practice";
   return mode || "practice";

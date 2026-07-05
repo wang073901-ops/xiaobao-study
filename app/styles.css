@@ -437,6 +437,12 @@ h3 {
   color: var(--ink);
 }
 
+.compact-button {
+  min-height: 40px;
+  padding: 9px 14px;
+  white-space: nowrap;
+}
+
 .ghost-button {
   background: var(--panel-soft);
   color: var(--green-dark);
