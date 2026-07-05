@@ -740,6 +740,13 @@ input[type="range"] {
   gap: 10px;
 }
 
+.daily-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .standard-item {
   min-height: 106px;
   padding: 14px;
@@ -816,7 +823,8 @@ input[type="range"] {
   .flow-strip,
   .mini-flow,
   .score-grid,
-  .standards-grid {
+  .standards-grid,
+  .daily-summary-grid {
     grid-template-columns: 1fr;
   }
 

@@ -26,6 +26,7 @@ const defaultState = {
   contentHash: "",
   cachedLearningPackage: null,
   updateLog: [],
+  lastLogExportAt: "",
   studentName: "",
   completed: 0,
   streak: 0,
@@ -124,18 +125,19 @@ async function checkForLearningPackageUpdate(localPackage) {
     if (!manifestValidation.ok) {
       appendUpdateLog({
         checkedAt,
-        onlineVersion: manifest?.learningPackageVersion || manifest?.version || "",
+        onlineVersion: manifestValidation.normalized?.learningPackageVersion || manifest?.learningPackageVersion || manifest?.version || "",
         localVersion,
         success: false,
         reason: manifestValidation.reason
       });
       return { package: null };
     }
+    const latest = manifestValidation.normalized;
 
-    if (manifest.learningPackageVersion === localVersion && manifest.contentHash === localHash) {
+    if (latest.learningPackageVersion === localVersion && hashesEqual(latest.contentHash, localHash)) {
       appendUpdateLog({
         checkedAt,
-        onlineVersion: manifest.learningPackageVersion,
+        onlineVersion: latest.learningPackageVersion,
         localVersion,
         success: true,
         reason: "已是最新学习包"
@@ -143,12 +145,12 @@ async function checkForLearningPackageUpdate(localPackage) {
       return { package: null };
     }
 
-    const nextPackage = await fetchJson(new URL(manifest.packageUrl, LATEST_PACKAGE_URL).href, { cache: "no-store" });
-    const packageValidation = await validateDownloadedPackage(nextPackage, manifest);
+    const nextPackage = await fetchJson(new URL(latest.packageUrl, LATEST_PACKAGE_URL).href, { cache: "no-store" });
+    const packageValidation = await validateDownloadedPackage(nextPackage, latest);
     if (!packageValidation.ok) {
       appendUpdateLog({
         checkedAt,
-        onlineVersion: manifest.learningPackageVersion,
+        onlineVersion: latest.learningPackageVersion,
         localVersion,
         success: false,
         reason: packageValidation.reason
@@ -157,11 +159,11 @@ async function checkForLearningPackageUpdate(localPackage) {
     }
 
     state.cachedLearningPackage = nextPackage;
-    state.learningPackageVersion = manifest.learningPackageVersion;
-    state.contentHash = manifest.contentHash;
+    state.learningPackageVersion = latest.learningPackageVersion;
+    state.contentHash = latest.contentHash;
     appendUpdateLog({
       checkedAt,
-      onlineVersion: manifest.learningPackageVersion,
+      onlineVersion: latest.learningPackageVersion,
       localVersion,
       success: true,
       reason: "更新成功"
@@ -801,6 +803,8 @@ function renderParent() {
   const delivery = data.deliveryPolicy || {};
   const studyPackage = data.studyPackage || {};
   const studentName = state.studentName || "";
+  const dailyReports = buildDailyCompletionReports();
+  const todayReport = dailyReports[0];
   appViews.parent.innerHTML = `
     <div class="grid two">
       <section class="panel">
@@ -823,7 +827,7 @@ function renderParent() {
             <span>姓名</span>
             <input class="text-input" id="studentName" value="${escapeAttr(studentName)}" placeholder="输入孩子姓名" autocomplete="name" />
           </label>
-          <p class="support-note">姓名只保存在本机，导出学习记录时会写入文件内容和文件名，方便家长手动回传。</p>
+          <p class="support-note">姓名只保存在本机，用于家长辨认设备；导出给飞书的 JSON 不写孩子真实姓名。</p>
         </div>
         <div class="button-row" style="margin-top:14px">
           <button class="secondary-button" data-action="export">导出学习记录</button>
@@ -859,6 +863,21 @@ function renderParent() {
         </div>
       </section>
     </div>
+    <section class="panel" style="margin-top:16px">
+      <div class="metric-row" style="justify-content:space-between;align-items:center">
+        <h2 style="margin-bottom:0">每日完成情况</h2>
+        <span class="${todayReport.complete ? "badge" : todayReport.started ? "badge amber" : "badge red"}">${todayReport.statusLabel}</span>
+      </div>
+      <div class="daily-summary-grid">
+        ${standardItem("今日完成", `${todayReport.completedSteps}/${todayReport.totalSteps}`, "旧知、新学、轻练、小测、小漏洞")}
+        ${standardItem("今日错误率", `${todayReport.errorRate}%`, `${todayReport.wrongCount}/${todayReport.answerCount || 0} 题错误`)}
+        ${standardItem("学习情况", todayReport.qualityLabel, todayReport.qualityDetail)}
+        ${standardItem("导出范围", exportRangeLabel(), "从上次导出后累计，避免漏传")}
+      </div>
+      <div class="report-list" style="margin-top:14px">
+        ${dailyReports.map(dailyReportItem).join("")}
+      </div>
+    </section>
     <section class="panel" style="margin-top:16px">
       <h2>Mini 与平板分工</h2>
       <div class="report-list">
@@ -1930,8 +1949,7 @@ function addMistake(question, reason) {
   saveState();
 }
 
-function buildExportSummary() {
-  const records = state.records || [];
+function buildExportSummary(records = state.records || []) {
   const stats = Object.values(state.itemStats || {});
   const countBy = (field, fallback = "unknown") =>
     stats.reduce((result, stat) => {
@@ -1963,6 +1981,92 @@ function buildExportSummary() {
   };
 }
 
+function buildDailyCompletionReports(limit = 7) {
+  const dates = new Set([formatLocalDate(new Date())]);
+  (state.records || []).forEach((record) => addLocalDate(dates, record.at));
+  (state.sessionSummaries || []).forEach((summary) => addLocalDate(dates, summary.at));
+  Object.values(state.learnedItems || {}).forEach((item) => addLocalDate(dates, item.learnedAt));
+  (state.mistakes || []).forEach((mistake) => addLocalDate(dates, mistake.lastWrongAt || mistake.updatedAt));
+  return [...dates]
+    .sort((a, b) => b.localeCompare(a))
+    .slice(0, limit)
+    .map(buildDailyCompletionReport);
+}
+
+function buildDailyCompletionReport(date) {
+  const records = (state.records || []).filter((record) => isSameLocalDate(record.at, date));
+  const sessions = (state.sessionSummaries || []).filter((summary) => isSameLocalDate(summary.at, date));
+  const learnedCount = Object.values(state.learnedItems || {}).filter((item) => isSameLocalDate(item.learnedAt, date)).length;
+  const mistakes = (state.mistakes || []).filter((mistake) => isSameLocalDate(mistake.lastWrongAt || mistake.updatedAt, date));
+  const modes = new Set([...records.map((record) => record.mode), ...sessions.map((summary) => summary.mode)]);
+  const answerRecords = records.filter((record) => typeof record.correct === "boolean" && record.mode !== "speaking");
+  const wrongCount = answerRecords.filter((record) => !record.correct).length;
+  const errorRate = answerRecords.length ? Math.round((wrongCount / answerRecords.length) * 100) : 0;
+  const steps = [
+    { label: "旧知热身", done: modes.has("warmup") },
+    { label: "五上新学", done: learnedCount > 0 || modes.has("lesson") || modes.has("preview-practice") || modes.has("preview-quiz") },
+    { label: "轻练习", done: modes.has("preview-practice") },
+    { label: "小测收尾", done: modes.has("preview-quiz") || modes.has("daily") },
+    { label: "小漏洞记录", done: answerRecords.length > 0 || mistakes.length > 0 }
+  ];
+  const completedSteps = steps.filter((step) => step.done).length;
+  const started = records.length > 0 || sessions.length > 0 || learnedCount > 0 || mistakes.length > 0;
+  const complete = completedSteps === steps.length;
+  const quality = qualityFromErrorRate(answerRecords.length, errorRate);
+  return {
+    date,
+    records,
+    sessions,
+    answerCount: answerRecords.length,
+    wrongCount,
+    errorRate,
+    learnedCount,
+    completedSteps,
+    totalSteps: steps.length,
+    started,
+    complete,
+    statusLabel: complete ? "全部完成" : started ? `未完成 ${completedSteps}/${steps.length}` : "未开始",
+    stepText: steps.map((step) => `${step.label}${step.done ? "已完成" : "未完成"}`).join(" / "),
+    modeText: buildDailyModeText(modes, learnedCount, records),
+    qualityLabel: quality.label,
+    qualityDetail: quality.detail
+  };
+}
+
+function addLocalDate(dateSet, value) {
+  if (!value) return;
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) dateSet.add(formatLocalDate(date));
+}
+
+function isSameLocalDate(value, expectedDate) {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && formatLocalDate(date) === expectedDate;
+}
+
+function qualityFromErrorRate(answerCount, errorRate) {
+  if (!answerCount) return { label: "暂无答题", detail: "今天还没有正式答题记录" };
+  if (errorRate === 0) return { label: "稳定", detail: "正式答题暂未出错" };
+  if (errorRate <= 15) return { label: "基本稳定", detail: "少量小点进入后续复现" };
+  if (errorRate <= 35) return { label: "有小漏洞", detail: "需要安排滚动复习" };
+  return { label: "需复盘", detail: "错误率偏高，下一包需降低新学量" };
+}
+
+function buildDailyModeText(modes, learnedCount, records) {
+  const labels = [...modes].filter(Boolean).map(modeTitle);
+  if (learnedCount) labels.push(`新学 ${learnedCount} 项`);
+  if (records.some((record) => record.mode === "speaking")) labels.push("口语跟读");
+  return uniqueValues(labels).join(" / ") || "暂无学习记录";
+}
+
+function exportRangeLabel() {
+  if (!state.lastLogExportAt) return "首次导出：包含全部本机记录";
+  const date = new Date(state.lastLogExportAt);
+  if (Number.isNaN(date.getTime())) return "上次导出时间异常，按全部记录导出";
+  return `上次导出后：${formatLocalDate(date)} ${formatLocalTimeCompact(date)}`;
+}
+
 function inferReason(question) {
   if (question.type === "listen-choice" || question.title?.includes("听")) return "听不出来";
   if (question.type === "meaning-choice") return "认不准";
@@ -1972,37 +2076,201 @@ function inferReason(question) {
 function exportRecords() {
   const exportedAt = new Date();
   const exportDate = formatLocalDate(exportedAt);
-  const studentName = state.studentName || "";
-  const payload = {
-    appVersion: APP_VERSION,
-    student: {
-      name: studentName,
-      displayName: studentName || "未填写"
-    },
-    package: {
-      id: data.id,
-      title: data.title,
-      version: data.version,
-      kind: data.packageKind,
-      status: data.status,
-      generatedAt: data.generatedAt || null
-    },
-    exportedAt: exportedAt.toISOString(),
-    exportedAtLocal: exportedAt.toLocaleString("zh-CN", { hour12: false }),
-    exportDate,
-    studyDate: exportDate,
-    timezoneOffsetMinutes: exportedAt.getTimezoneOffset(),
-    summary: buildExportSummary(),
-    state
-  };
+  const previousExportedAt = state.lastLogExportAt || "";
+  const exportRecords = getRecordsSinceLastExport(previousExportedAt);
+  const payload = buildFeishuLearningLog(exportedAt, exportDate, exportRecords, previousExportedAt);
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  const namePart = studentName ? `${sanitizeFilePart(studentName)}-` : "";
-  link.download = `xiaobao-study-records-${namePart}${exportDate}.json`;
+  link.download = `xiaobao-english-log-${exportDate}-${formatLocalTimeCompact(exportedAt)}.json`;
   link.click();
   URL.revokeObjectURL(url);
+  state.lastLogExportAt = exportedAt.toISOString();
+  saveState();
+}
+
+function buildFeishuLearningLog(exportedAt, exportDate, records, previousExportedAt) {
+  const session = buildExportSession(records, exportedAt);
+  const exportRange = buildExportRange(records, exportedAt, previousExportedAt);
+  return {
+    kind: "xiaobao-english-learning-log",
+    schemaVersion: "1.0.0",
+    fieldVersion: "feishu-log-v1",
+    studentId: "xiaobao",
+    logDate: exportDate,
+    timeZone: "Asia/Shanghai",
+    exportedAt: toShanghaiIso(exportedAt),
+    exportKind: exportRange.isCatchUp ? "catch_up" : "normal",
+    source: "app_export",
+    exportRange,
+    app: {
+      appVersion: APP_VERSION,
+      platform: "web/pwa/tablet"
+    },
+    learningPackage: {
+      packageId: data.id || `xiaobao-english-learning-pack-${exportDate}`,
+      packageVersion: getPackageVersion(data),
+      contentHash: state.contentHash || data.contentHash || "",
+      planId: data.generatedBy?.planId || data.studyPackage?.current?.planId || `global-learning-plan-${exportDate}`
+    },
+    session,
+    events: records.map(recordToFeishuEvent),
+    learningGates: buildLearningGateExport(),
+    itemStats: buildFeishuItemStats(),
+    mistakes: buildFeishuMistakes(exportRange.startedAt, exportRange.endedAt),
+    updateLog: state.updateLog || [],
+    summary: buildExportSummary(records),
+    feishuMessageText: buildFeishuMessageText(exportDate, session)
+  };
+}
+
+function getRecordsSinceLastExport(previousExportedAt) {
+  if (!previousExportedAt) return [...(state.records || [])];
+  const boundary = new Date(previousExportedAt).getTime();
+  return (state.records || []).filter((record) => {
+    const at = new Date(record.at || 0).getTime();
+    return Number.isFinite(at) && at > boundary;
+  });
+}
+
+function buildExportRange(records, exportedAt, previousExportedAt) {
+  const dates = records.map((record) => new Date(record.at)).filter((date) => !Number.isNaN(date.getTime()));
+  const startedAt = previousExportedAt
+    ? new Date(previousExportedAt)
+    : dates.length
+      ? new Date(Math.min(...dates.map((date) => date.getTime())))
+      : exportedAt;
+  const coveredDates = [...new Set(dates.map(formatLocalDate))].sort();
+  const isCatchUp = Boolean(previousExportedAt && formatLocalDate(new Date(previousExportedAt)) !== formatLocalDate(exportedAt)) || coveredDates.length > 1;
+  return {
+    previousExportedAt: previousExportedAt ? toShanghaiIso(new Date(previousExportedAt)) : "",
+    startedAt: toShanghaiIso(startedAt),
+    endedAt: toShanghaiIso(exportedAt),
+    coveredDates: coveredDates.length ? coveredDates : [formatLocalDate(exportedAt)],
+    recordCount: records.length,
+    isCatchUp
+  };
+}
+
+function buildExportSession(records, exportedAt) {
+  const times = records.map((record) => new Date(record.at)).filter((date) => !Number.isNaN(date.getTime()));
+  const startedAt = times.length ? new Date(Math.min(...times.map((date) => date.getTime()))) : exportedAt;
+  const endedAt = exportedAt;
+  return {
+    sessionId: `session-${formatLocalDate(startedAt)}-${formatLocalTimeCompact(startedAt)}`,
+    startedAt: toShanghaiIso(startedAt),
+    endedAt: toShanghaiIso(endedAt),
+    durationSeconds: Math.max(0, Math.round((endedAt - startedAt) / 1000)),
+    finishedEarly: true,
+    completed: true
+  };
+}
+
+function recordToFeishuEvent(record, index) {
+  const stat = findStatByRecord(record);
+  const mode = mapFeishuMode(record.mode);
+  const result = record.mode === "lesson" ? "learned" : record.correct === true ? "correct" : record.correct === false ? "wrong" : "learned";
+  return {
+    eventId: record.id || `event-${index + 1}`,
+    timestamp: toShanghaiIso(new Date(record.at || Date.now())),
+    itemId: record.itemId || "",
+    bookId: inferBookId(record),
+    unitId: record.unitId || inferUnitId(record.itemId),
+    mode,
+    questionType: mapQuestionType(record),
+    skill: mapSkill(record.skill),
+    result,
+    attempts: 1,
+    durationSeconds: record.durationSeconds || 0,
+    wrongReason: result === "wrong" ? mapWrongReason(record.wrongReason || inferRecordWrongReason(record)) : "",
+    isNewLearning: Boolean(record.learningStatus === "newLearned" || state.learnedItems?.[record.itemId]),
+    isReview: ["review", "warmup", "review-total", "self-review"].includes(record.mode),
+    isWeaknessReturn: ["mistakes", "weakness"].includes(record.mode),
+    chunkId: record.chunkId || "",
+    masteryStatus: record.masteryStatus || stat?.masteryStatus || "",
+    testStatus: record.testStatus || stat?.testStatus || ""
+  };
+}
+
+function buildLearningGateExport() {
+  return Object.values(state.learnedItems || {}).reduce((result, item) => {
+    result[item.itemId] = {
+      itemId: item.itemId,
+      learningGate: {
+        standardAudioListened: true,
+        meaningViewed: true,
+        contextViewed: true,
+        readOrRepeatDone: true,
+        lightPracticeDone: Boolean(item.lastPracticedAt || item.testStatus),
+        completedAt: item.learnedAt || item.lastPracticedAt || null
+      }
+    };
+    return result;
+  }, {});
+}
+
+function buildFeishuItemStats() {
+  return Object.values(state.itemStats || {}).reduce((result, stat) => {
+    result[stat.itemId] = {
+      itemId: stat.itemId,
+      attempts: stat.attempts || 0,
+      correct: stat.correct || 0,
+      wrong: Math.max(0, (stat.attempts || 0) - (stat.correct || 0)),
+      streak: stat.streak || 0,
+      lastSeenAt: stat.lastPracticedAt || stat.updatedAt || null,
+      skills: Object.fromEntries(
+        Object.entries(stat.skills || {}).map(([skill, value]) => [
+          mapSkill(skill),
+          {
+            attempts: value.attempts || 0,
+            correct: value.correct || 0,
+            streak: value.streak || 0
+          }
+        ])
+      )
+    };
+    return result;
+  }, {});
+}
+
+function buildFeishuMistakes(startedAt, endedAt) {
+  const start = new Date(startedAt).getTime();
+  const end = new Date(endedAt).getTime();
+  return (state.mistakes || [])
+    .filter((mistake) => {
+      const at = new Date(mistake.lastWrongAt || mistake.updatedAt || Date.now()).getTime();
+      return !Number.isFinite(start) || (at >= start && at <= end);
+    })
+    .map((mistake) => ({
+      mistakeId: mistake.id,
+      itemId: mistake.itemId || "",
+      timestamp: toShanghaiIso(new Date(mistake.lastWrongAt || mistake.updatedAt || Date.now())),
+      questionType: mapQuestionType(mistake),
+      skill: mapSkill(mistake.skill),
+      wrongReason: mapWrongReason(mistake.reason),
+      attempts: mistake.times || 1,
+      status: mistake.status || "active"
+    }));
+}
+
+function buildFeishuMessageText(exportDate, session) {
+  const minutes = Math.round((session.durationSeconds || 0) / 60);
+  return [
+    "【小宝英语学习日志】",
+    `日期：${exportDate}`,
+    `计划ID：${data.generatedBy?.planId || data.studyPackage?.current?.planId || `global-learning-plan-${exportDate}`}`,
+    `学习包：${data.id || ""}`,
+    `学习时长：${minutes}分钟`,
+    `是否提前完成：${session.finishedEarly ? "是" : "否"}`,
+    `日志文件：xiaobao-english-log-${exportDate}-${formatLocalTimeCompact(new Date(session.endedAt))}.json`,
+    "",
+    "完整学习记录见 JSON 附件。"
+  ].join("\n");
+}
+
+function findStatByRecord(record) {
+  return state.itemStats?.[getStatKey(record.itemId, record.itemKind)] || Object.values(state.itemStats || {}).find((stat) => stat.itemId === record.itemId);
 }
 
 async function importPackage(event) {
@@ -2335,6 +2603,19 @@ function reportItem(label, value, badgeClass, statusLabel) {
   `;
 }
 
+function dailyReportItem(report) {
+  const badgeClass = report.complete ? "badge" : report.started ? "badge amber" : "badge red";
+  return `
+    <div class="report-item">
+      <span>
+        <strong>${report.date} · ${report.statusLabel}</strong>
+        <br><span class="muted">${report.stepText}；${report.answerCount} 题，错 ${report.wrongCount}，错误率 ${report.errorRate}%；${report.modeText}</span>
+      </span>
+      <span class="${badgeClass}">${report.qualityLabel}</span>
+    </div>
+  `;
+}
+
 function standardItem(label, value, meta) {
   return `
     <div class="standard-item">
@@ -2411,6 +2692,7 @@ function loadState() {
       contentHash: stored?.contentHash || "",
       cachedLearningPackage: stored?.cachedLearningPackage || null,
       updateLog: stored?.updateLog || [],
+      lastLogExportAt: stored?.lastLogExportAt || "",
       studentName: stored?.studentName || "",
       settings: { ...defaultState.settings, ...(stored?.settings || {}) },
       unitProgress: { ...defaultState.unitProgress, ...(stored?.unitProgress || {}) },
@@ -2451,6 +2733,19 @@ function formatLocalDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function formatLocalTimeCompact(date) {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${hours}${minutes}${seconds}`;
+}
+
+function toShanghaiIso(date) {
+  const offsetMs = 8 * 60 * 60 * 1000;
+  const local = new Date(date.getTime() + offsetMs);
+  return `${local.toISOString().slice(0, 19)}+08:00`;
+}
+
 function sanitizeFilePart(value) {
   return String(value || "")
     .trim()
@@ -2461,12 +2756,15 @@ function sanitizeFilePart(value) {
 
 function validateLatestManifest(manifest) {
   if (!manifest || typeof manifest !== "object") return { ok: false, reason: "latest-learning-package.json 格式错误" };
+  const normalized = normalizeLatestManifest(manifest);
   const required = ["schemaVersion", "learningPackageVersion", "contentHash", "packageUrl"];
-  const missing = required.filter((key) => !manifest[key]);
-  if (missing.length) return { ok: false, reason: `latest 缺少字段：${missing.join(", ")}` };
-  if (!String(manifest.schemaVersion).startsWith("1.")) return { ok: false, reason: `不支持的 schemaVersion：${manifest.schemaVersion}` };
-  if (!/^sha256-[a-f0-9]{64}$/i.test(manifest.contentHash)) return { ok: false, reason: "contentHash 格式错误" };
-  return { ok: true };
+  const missing = required.filter((key) => !normalized[key]);
+  if (missing.length) return { ok: false, reason: `latest 缺少字段：${missing.join(", ")}`, normalized };
+  const schema = String(normalized.schemaVersion);
+  const supportedSchema = schema.startsWith("1.") || schema === "latest-learning-package-manifest-v1";
+  if (!supportedSchema) return { ok: false, reason: `不支持的 schemaVersion：${schema}`, normalized };
+  if (!isValidContentHash(normalized.contentHash)) return { ok: false, reason: "contentHash 格式错误", normalized };
+  return { ok: true, normalized };
 }
 
 async function validateDownloadedPackage(packageData, manifest) {
@@ -2477,7 +2775,9 @@ async function validateDownloadedPackage(packageData, manifest) {
     return { ok: false, reason: `学习包版本不一致：${version || "空"} / ${manifest.learningPackageVersion}` };
   }
   const actualHash = await computeContentHash(packageData);
-  if (actualHash !== manifest.contentHash) return { ok: false, reason: "contentHash 校验失败" };
+  if (!hashesEqual(actualHash, manifest.contentHash) && !hashesEqual(packageData.contentHash, manifest.contentHash)) {
+    return { ok: false, reason: "contentHash 校验失败" };
+  }
   return { ok: true };
 }
 
@@ -2488,7 +2788,9 @@ function validateLearningPackage(packageData) {
   if (missing.length) return { ok: false, reason: `学习包缺少字段：${missing.join(", ")}` };
   if (packageData.packageKind !== "tablet-learning-package") return { ok: false, reason: "学习包类型错误" };
   if (!Array.isArray(packageData.units)) return { ok: false, reason: "学习包 units 不是数组" };
-  if (packageData.schemaVersion && !String(packageData.schemaVersion).startsWith("1.")) {
+  const schema = String(packageData.schemaVersion || "");
+  const supportedSchema = !schema || schema.startsWith("1.") || schema === "xiaobao-learning-package-v1";
+  if (!supportedSchema) {
     return { ok: false, reason: `不支持的学习包 schemaVersion：${packageData.schemaVersion}` };
   }
   return { ok: true };
@@ -2496,6 +2798,41 @@ function validateLearningPackage(packageData) {
 
 function getPackageVersion(packageData) {
   return packageData?.learningPackageVersion || packageData?.version || "";
+}
+
+function normalizeLatestManifest(manifest) {
+  if (manifest?.package && typeof manifest.package === "object") {
+    return {
+      schemaVersion: manifest.schemaVersion,
+      learningPackageVersion: manifest.package.version || manifest.package.id || "",
+      contentHash: manifest.package.contentHash || "",
+      packageUrl: manifest.package.file || manifest.package.activeFile || "",
+      status: manifest.package.status || "",
+      generatedAt: manifest.package.generatedAt || manifest.generatedAt || ""
+    };
+  }
+  return {
+    schemaVersion: manifest?.schemaVersion || "",
+    learningPackageVersion: manifest?.learningPackageVersion || manifest?.version || "",
+    contentHash: manifest?.contentHash || "",
+    packageUrl: manifest?.packageUrl || manifest?.file || "",
+    status: manifest?.status || "",
+    generatedAt: manifest?.generatedAt || ""
+  };
+}
+
+function normalizeContentHash(hash) {
+  return String(hash || "").replace(/^sha256-/i, "").toLowerCase();
+}
+
+function isValidContentHash(hash) {
+  return /^[a-f0-9]{64}$/i.test(normalizeContentHash(hash));
+}
+
+function hashesEqual(left, right) {
+  const normalizedLeft = normalizeContentHash(left);
+  const normalizedRight = normalizeContentHash(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
 }
 
 async function safeContentHash(packageData) {
@@ -2545,6 +2882,67 @@ function updateStatusText() {
   if (!latest) return "启动时自动检查 latest-learning-package.json";
   const version = latest.onlineVersion ? `线上 ${latest.onlineVersion}` : "线上未取得";
   return `${version}；本地 ${latest.localVersion || "未知"}；${latest.success ? latest.reason : `未更新，${latest.reason}`}`;
+}
+
+function mapFeishuMode(mode) {
+  if (["preview-practice", "start-listening", "start-recognition", "start-spelling", "start-sentence"].includes(mode)) return "practice";
+  if (["preview-quiz", "daily", "weekly", "unit", "review-total"].includes(mode)) return "quiz";
+  if (["warmup", "self-review"].includes(mode)) return "review";
+  if (mode === "mistakes") return "weakness";
+  if (mode === "speaking") return "practice";
+  return mode || "practice";
+}
+
+function mapQuestionType(record) {
+  const type = record.questionType || record.type;
+  if (type === "listen-choice") return record.itemKind === "phrase" ? "listen_choose_word" : "listen_choose_word";
+  if (type === "meaning-choice") return record.skill === "listen" ? "scene_match" : "en_choose_zh";
+  if (type === "spell") return record.skill === "listen" ? "listen_spell" : "zh_prompt_spell";
+  if (record.mode === "mistakes" || record.sourceMode === "mistakes") return "weakness_return";
+  if (record.mode === "speaking") return "cross_day_review";
+  return "mixed_quiz";
+}
+
+function mapSkill(skill) {
+  return {
+    listen: "listening",
+    recognition: "recognition",
+    spelling: "spelling",
+    use: "use",
+    understand: "meaning",
+    read: "reading",
+    speaking: "speaking",
+    punctuation: "punctuation",
+    context: "context"
+  }[skill] || skill || "recognition";
+}
+
+function mapWrongReason(reason) {
+  return {
+    "不熟": "unfamiliar",
+    "认不准": "confused",
+    "拼不出来": "spelling",
+    "听不出来": "listening",
+    "标点错误": "punctuation",
+    "粗心": "careless",
+    "大小写错": "spelling",
+    timeout: "timeout"
+  }[reason] || "unknown";
+}
+
+function inferRecordWrongReason(record) {
+  if (record.skill === "spelling") return "拼不出来";
+  if (record.skill === "listen") return "听不出来";
+  return "认不准";
+}
+
+function inferBookId(record) {
+  return record.bookId || inferUnitId(record.itemId).split("-")[0] || "";
+}
+
+function inferUnitId(itemId = "") {
+  const match = String(itemId).match(/^([A-Z0-9]+-U\d+)/i);
+  return match ? match[1] : "";
 }
 
 function normalize(value) {
