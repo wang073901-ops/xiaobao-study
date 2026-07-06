@@ -1,48 +1,48 @@
 {
   "kind": "latest-learning-package",
   "schemaVersion": "latest-learning-package-manifest-v1",
-  "generatedAt": "2026-07-05T17:22:53.956Z",
+  "generatedAt": "2026-07-06T17:09:30.148Z",
   "package": {
-    "id": "xiaobao-english-learning-pack-2026-07-06-0122",
+    "id": "xiaobao-english-learning-pack-2026-07-07-0109",
     "title": "小宝英语平板学习包",
-    "version": "xiaobao-english-learning-pack-2026-07-06-0122",
-    "file": "data/packages/xiaobao-english-learning-pack-2026-07-06-0122.json",
+    "version": "xiaobao-english-learning-pack-2026-07-07-0109",
+    "file": "data/packages/xiaobao-english-learning-pack-2026-07-07-0109.json",
     "activeFile": "data/english-5a-demo.json",
     "status": "verified",
-    "schemaVersion": "xiaobao-learning-package-v1",
-    "contentHash": "6df8f32c0851b56cfd9e960766c3ab6282e1c087d192cda5a5cf941e893c0d81",
-    "generatedAt": "2026-07-05T17:22:53.037232+00:00"
+    "schemaVersion": "xiaobao-learning-package-v2",
+    "contentHash": "37100a5ef44def53f782a2569c5469336a6a5804e38510f14559cff78b38b1ec",
+    "generatedAt": "2026-07-06T17:09:29.826Z"
   },
   "previousPackage": {
-    "id": "xiaobao-english-learning-pack-2026-07-06-0114",
+    "id": "xiaobao-english-learning-pack-2026-07-07-0108",
     "title": "小宝英语平板学习包",
-    "version": "xiaobao-english-learning-pack-2026-07-06-0114",
-    "file": "data/packages/xiaobao-english-learning-pack-2026-07-06-0114.json",
+    "version": "xiaobao-english-learning-pack-2026-07-07-0108",
+    "file": "data/packages/xiaobao-english-learning-pack-2026-07-07-0108.json",
     "activeFile": "data/english-5a-demo.json",
     "status": "verified",
-    "schemaVersion": "xiaobao-learning-package-v1",
-    "contentHash": "f0cb4303a8fdec674b9a6c93df0d7bacb7f107eee933600b4491416f13ec7bf9",
-    "generatedAt": "2026-07-05T17:14:00.393071+00:00"
+    "schemaVersion": "xiaobao-learning-package-v2",
+    "contentHash": "ab50b36a175a39e171fafe6800368764f0749a0f52aa6b96090b831a6b6c5711",
+    "generatedAt": "2026-07-06T17:08:56.977Z"
   },
   "rollback": {
     "available": true,
-    "file": "data/packages/xiaobao-english-learning-pack-2026-07-06-0114.json",
-    "version": "xiaobao-english-learning-pack-2026-07-06-0114",
-    "contentHash": "f0cb4303a8fdec674b9a6c93df0d7bacb7f107eee933600b4491416f13ec7bf9"
+    "file": "data/packages/xiaobao-english-learning-pack-2026-07-07-0108.json",
+    "version": "xiaobao-english-learning-pack-2026-07-07-0108",
+    "contentHash": "ab50b36a175a39e171fafe6800368764f0749a0f52aa6b96090b831a6b6c5711"
   },
   "controller": {
     "trigger": "learning-plan-handoff",
-    "handoff": "handoff/learning-plan-handoff.md",
+    "sourcePolicy": "three-total-libraries",
     "appCodeVersionModified": false,
     "uploadStatus": "uploaded",
-    "uploadedAt": "2026-07-06T07:02:30.211Z",
+    "uploadedAt": "2026-07-06T17:09:59.342Z",
     "publicManifestUrl": "https://wang073901-ops.github.io/xiaobao-study/data/latest-learning-package.json",
-    "publicPackageUrl": "https://wang073901-ops.github.io/xiaobao-study/data/packages/xiaobao-english-learning-pack-2026-07-06-0122.json"
+    "publicPackageUrl": "https://wang073901-ops.github.io/xiaobao-study/data/packages/xiaobao-english-learning-pack-2026-07-07-0109.json"
   },
   "privacy": {
     "includesRawLearningLogs": false,
     "includesReportsDirectory": false,
-    "githubPagesPolicy": "Only publish learning package and manifest; never publish data/reports."
+    "githubPagesPolicy": "Only publish dist/github-pages data needed by the APP."
   },
-  "contentHash": "6dcdd2d8d6e8a442919d6bf5dd8cb75d24d1270ca6ed2a49724a6e296ee5c23b"
+  "contentHash": "40c413d8f62dceef4465bbd053a1b100779b2b61901162bcbe019fafeb2b0410"
 }

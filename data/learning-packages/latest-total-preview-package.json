@@ -1,0 +1,98 @@
+{
+  "kind": "latest-total-preview-package",
+  "generatedAt": "2026-07-06T16:46:50.351Z",
+  "packageFile": "data/learning-packages/xiaobao-english-total-preview-pack-2026-07-07-0046.json",
+  "version": "total-preview-2026-07-07-0046",
+  "summary": {
+    "items": 640,
+    "questions": 3074,
+    "chunks": 110,
+    "stages": {
+      "sentence": 514,
+      "vocabulary": 126
+    },
+    "vocabularyItems": 126,
+    "sentenceItems": 514,
+    "units": {
+      "5A-LT": 8,
+      "5A-P01": 24,
+      "5A-P02": 29,
+      "5A-U01": 88,
+      "5A-U02": 76,
+      "5A-U03": 62,
+      "5A-U04": 61,
+      "5A-U05": 59,
+      "5A-U06": 67,
+      "5A-U07": 73,
+      "5A-U08": 80,
+      "5A-WL": 13
+    },
+    "itemKinds": {
+      "sentence": 393,
+      "phrase": 135,
+      "word": 99,
+      "proper-noun": 13
+    },
+    "questionCategories": {
+      "sentence": 135,
+      "text-dialogue": 311,
+      "vocabulary-item": 126,
+      "phrase": 55,
+      "proper-noun": 13
+    },
+    "gatePhases": {
+      "light_practice": 1920,
+      "gate_quiz": 1154
+    },
+    "questionTypes": {
+      "preview_sentence_listen_meaning": 212,
+      "preview_sentence_en_zh": 212,
+      "preview_sentence_fill_blank": 212,
+      "preview_reorder_words": 212,
+      "preview_zh_key_sentence": 212,
+      "preview_scene_listen_meaning": 302,
+      "preview_scene_true_false": 302,
+      "preview_dialogue_fill_blank": 302,
+      "preview_scene_order": 302,
+      "preview_role_key_expression": 302,
+      "preview_vocab_en_zh_match": 126,
+      "preview_vocab_listen_choose": 126,
+      "preview_vocab_zh_fill_blank": 126,
+      "preview_vocab_zh_full_spell": 126
+    },
+    "difficulties": {
+      "L1": 978,
+      "L2": 1190,
+      "L3": 604,
+      "L4": 302
+    }
+  },
+  "rules": {
+    "stageOrder": [
+      "vocabulary",
+      "sentence",
+      "strength"
+    ],
+    "vocabularyDailyLimit": 10,
+    "vocabularyQuestionPlan": {
+      "lightPracticeTotal": 30,
+      "gateQuizTotal": 10,
+      "perItem": {
+        "lightPractice": [
+          "preview_vocab_en_zh_match",
+          "preview_vocab_listen_choose",
+          "preview_vocab_zh_fill_blank"
+        ],
+        "gateQuiz": [
+          "preview_vocab_zh_full_spell"
+        ]
+      }
+    },
+    "sentenceEntryGate": {
+      "vocabularyCoverage": "100%",
+      "vocabularyTested": "100%",
+      "vocabularyAccuracyMin": 0.95,
+      "noCoreWordWrongTwoDaysInRow": true
+    }
+  }
+}
