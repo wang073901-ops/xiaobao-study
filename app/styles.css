@@ -728,6 +728,37 @@ select {
   border-top: 1px solid var(--line);
 }
 
+.export-callout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgba(37, 111, 91, 0.22);
+  border-radius: var(--radius);
+  background: #f4fbf7;
+}
+
+.export-callout strong,
+.export-callout span {
+  display: block;
+}
+
+.export-callout span,
+.support-line {
+  color: var(--muted);
+}
+
+.support-line {
+  margin: 12px 0 0;
+  line-height: 1.55;
+}
+
+.speaking-scope {
+  margin-bottom: 14px;
+}
+
 .setting-line {
   display: flex;
   align-items: center;
@@ -830,7 +861,8 @@ input[type="range"] {
   .mini-flow,
   .score-grid,
   .standards-grid,
-  .daily-summary-grid {
+  .daily-summary-grid,
+  .export-callout {
     grid-template-columns: 1fr;
   }
 

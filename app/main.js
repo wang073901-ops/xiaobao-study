@@ -41,6 +41,7 @@ const defaultState = {
   },
   selectedReview: null,
   selectedScope: null,
+  selectedSpeakingScopeId: "",
   unitProgress: {
     "5A-U1": "previewing"
   },
@@ -566,6 +567,59 @@ function getQuestionItemsForScope(scopeId) {
   return reviewItems.filter((item) => isItemInScope(item, scope));
 }
 
+function getSpeakingScopes() {
+  return [...getBookReviewScopes(), ...getFiveAUnitScopes()];
+}
+
+function getDefaultSpeakingScopeId() {
+  const available = getSpeakingScopes();
+  if (!available.length) return "";
+  if (available.some((scope) => scope.scopeId === state.selectedSpeakingScopeId)) return state.selectedSpeakingScopeId;
+  if (state.selectedScope?.scopeId && available.some((scope) => scope.scopeId === state.selectedScope.scopeId)) {
+    return state.selectedScope.scopeId;
+  }
+  const previewScope = getFiveAUnitScopes().find((scope) => scope.unitId === getCurrentStudyUnit()?.id);
+  return previewScope?.scopeId || available[0].scopeId;
+}
+
+function getAllQuestionItemsForScope(scopeId) {
+  const scope = getScopeById(scopeId);
+  if (!scope) return [];
+  const units = scope.scopeType === "fiveAUnit" ? getVerifiedUnits() : getVerifiedReviewUnits();
+  const items = [];
+  units.forEach((unit) => {
+    const all = [
+      ...(unit.words || []).map((item) => ({ ...item, itemKind: "word" })),
+      ...(unit.phrases || []).map((item) => ({ ...item, itemKind: "phrase" })),
+      ...(unit.sentences || []).map((item) => ({ ...item, itemKind: "sentence" }))
+    ];
+    all.forEach((item) => {
+      const decorated = decoratePracticeItem(item, unit, {
+        catalogId: unit.catalogId,
+        reviewUnit: scope.scopeType !== "fiveAUnit",
+        scopeId: scope.scopeId,
+        scopeType: scope.scopeType,
+        sourceLabel: scope.title,
+        sourceMode: "speaking"
+      });
+      if (isItemInScope(decorated, scope)) items.push(decorated);
+    });
+  });
+  return items;
+}
+
+function getSpeakingItems(scopeId) {
+  return getAllQuestionItemsForScope(scopeId)
+    .filter((item) => ["word", "phrase", "sentence"].includes(item.itemKind))
+    .slice(0, 80);
+}
+
+function speakingScopeOptions(selectedScopeId) {
+  return getSpeakingScopes()
+    .map((scope) => `<option value="${escapeAttr(scope.scopeId)}" ${scope.scopeId === selectedScopeId ? "selected" : ""}>${scope.title}</option>`)
+    .join("");
+}
+
 function getWarmupQuestions() {
   const mistakes = getActiveMistakes().slice(0, 2).map(mistakeToQuestion);
   const learned = [...getReviewQuestionItems(), ...getLearnedQuestionItems()]
@@ -649,17 +703,6 @@ function renderHome() {
         </div>
       </section>
     </div>
-    <section class="panel classroom-flow">
-      <h2>APP 学习流程</h2>
-      <div class="flow-strip">
-        ${flowStep(1, "开始学习", "先旧知热身，再新课听读")}
-        ${flowStep(2, "轻练习", "少量题确认刚学会")}
-        ${flowStep(3, "小测", "核心内容目标 100%")}
-        ${flowStep(4, "小漏洞回收", "答错不堵路，后面变式再练")}
-        ${flowStep(5, "家长报告", "严格看数据，由 Mini 生成下一包")}
-      </div>
-      <p class="support-note">学习时间按题量估算：熟练时答完可直接下一题，不强制学满；有预习控制在约 45 分钟内，无预习控制在约 20 分钟内。</p>
-    </section>
     <div class="grid three">
       <button class="card subject-tile primary" data-route-link="english">
         <span class="badge">重点</span>
@@ -741,16 +784,7 @@ function renderEnglish() {
         </div>
       </section>
     </div>
-    <div class="grid two">
-      <section class="panel">
-        <h2>学习路径</h2>
-        <div class="grid two">
-          ${pathCard("先听", "听单词、短语、句子", "start-listening")}
-          ${pathCard("再认", "听音选词、看中文选英文", "start-recognition")}
-          ${pathCard("再拼", "补字母、完整拼写、听写", "start-spelling")}
-          ${pathCard("再用", "核心句型、替换练习", "start-sentence")}
-        </div>
-      </section>
+    <div class="grid">
       <section class="panel">
         <h2>测试</h2>
         <div class="grid">
@@ -819,8 +853,18 @@ function renderMistakes() {
 }
 
 function renderSpeaking() {
-  const unit = getFirstVerifiedUnit();
-  const speakingItems = unit ? [...unit.words.slice(0, 6), ...unit.sentences.slice(0, 3)] : [currentSpeakingItem];
+  const selectedScopeId = getDefaultSpeakingScopeId();
+  const selectedScope = getScopeById(selectedScopeId);
+  const speakingItems = getSpeakingItems(selectedScopeId);
+  if (!speakingItems.some((item) => item.id === currentSpeakingItem?.id)) {
+    currentSpeakingItem = speakingItems[0] || currentSpeakingItem || {
+      id: "material-pending",
+      en: "Materials are being verified.",
+      zh: "资料正在核验中。"
+    };
+  }
+  state.selectedSpeakingScopeId = selectedScopeId;
+  saveState();
   appViews.speaking.innerHTML = `
     <div class="grid two">
       <section class="panel recording-panel">
@@ -837,24 +881,32 @@ function renderSpeaking() {
         <div id="scoreResult"></div>
       </section>
       <section class="panel">
-        <h2>跟读清单</h2>
-        <div class="mini-flow">
-          ${flowStep(1, "听", "英音慢速两遍")}
-          ${flowStep(2, "读", "孩子自己开口")}
-          ${flowStep(3, "回放", "听自己哪里不同")}
-          ${flowStep(4, "记录", "后续接云端评分")}
+        <div class="metric-row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <h2 style="margin-bottom:6px">可跟读内容</h2>
+            <p class="muted">当前跟读：${selectedScope?.title || "今日学习范围"}</p>
+          </div>
+          <span class="badge blue">${speakingItems.length} 项</span>
         </div>
+        <label class="field-label speaking-scope">
+          <span>选择跟读范围</span>
+          <select id="speakingScope">${speakingScopeOptions(selectedScopeId)}</select>
+        </label>
         <div class="mistake-list">
-          ${speakingItems
-            .map(
-              (item) => `
+          ${
+            speakingItems.length
+              ? speakingItems
+                  .map(
+                    (item) => `
                 <button class="mistake-item" data-speaking="${item.id}">
                   <span><strong>${item.en}</strong><br><span class="muted">${item.zh}</span></span>
                   <span class="badge blue">跟读</span>
                 </button>
               `
-            )
-            .join("")}
+                  )
+                  .join("")
+              : `<div class="card"><h3>这个范围还没开放</h3><p class="muted">等 Mini 下发已核验学习包后再练。</p></div>`
+          }
         </div>
       </section>
     </div>
@@ -862,6 +914,12 @@ function renderSpeaking() {
 
   appViews.speaking.querySelector("[data-action='play-reference']").addEventListener("click", () => speakLikeTeacher(currentSpeakingItem.en));
   appViews.speaking.querySelector("[data-action='record']").addEventListener("click", toggleRecording);
+  appViews.speaking.querySelector("#speakingScope")?.addEventListener("change", (event) => {
+    state.selectedSpeakingScopeId = event.target.value;
+    currentSpeakingItem = getSpeakingItems(event.target.value)[0] || currentSpeakingItem;
+    saveState();
+    renderSpeaking();
+  });
   appViews.speaking.querySelectorAll("[data-speaking]").forEach((button) => {
     button.addEventListener("click", () => {
       currentSpeakingItem = speakingItems.find((item) => item.id === button.dataset.speaking);
@@ -901,8 +959,14 @@ function renderParent() {
           </label>
           <p class="support-note">姓名只保存在本机，用于家长辨认设备；导出给飞书的 JSON 不写孩子真实姓名。</p>
         </div>
+        <div class="export-callout">
+          <div>
+            <strong>导出学习日志</strong>
+            <span>学习结束后点这里下载 JSON，再回传给 Mini 生成下一轮学习包。</span>
+          </div>
+          <button class="primary-button" data-action="export">下载学习日志</button>
+        </div>
         <div class="button-row" style="margin-top:14px">
-          <button class="secondary-button" data-action="export">导出学习记录</button>
           <label class="secondary-button file-label">
             导入学习包
             <input id="packageInput" type="file" accept="application/json" hidden />
@@ -955,7 +1019,7 @@ function renderParent() {
       <div class="report-list">
         ${reportItem("当前内容", studyPackage.current?.unitId || "今日学习包", studyPackage.current?.unitId ? "badge blue" : "badge")}
         ${reportItem("目标时长", studyPackage.current?.targetMinutes ? `${studyPackage.current.targetMinutes} 分钟以内` : "按题量控制", "badge")}
-        ${reportItem("导出记录", "学习后可手动导出 JSON，用于生成下一轮学习包", "badge blue")}
+        ${reportItem("导出学习日志", "用上方按钮下载 JSON，用于生成下一轮学习包", "badge blue")}
       </div>
     </section>
     <div class="grid two" style="margin-top:16px">
@@ -982,8 +1046,8 @@ function renderParent() {
           ${standardItem("当前小漏洞", `${getActiveMistakes().length}`, "所有入口统一汇总")}
           ${standardItem("最近稳定度", `${calcAccuracy()}%`, "最近练习参考")}
           ${standardItem("今日错误率", `${todayReport.errorRate}%`, `${todayReport.wrongCount}/${todayReport.answerCount || 0} 题错误`)}
-          ${standardItem("导出范围", exportRangeLabel(), "从上次导出后累计")}
         </div>
+        <p class="support-line">导出范围：${exportRangeLabel()}，从上次导出后累计。</p>
       </section>
     </div>
   `;
@@ -1920,6 +1984,7 @@ function handleRecordingComplete() {
   playback.hidden = false;
 
   const result = simulatePronunciationScore(currentSpeakingItem.en, blob.size);
+  const speakingScope = getScopeById(state.selectedSpeakingScopeId);
   appViews.speaking.querySelector("#scoreResult").innerHTML = scoreTemplate(result);
   state.records.push({
     id: `speech-${Date.now()}`,
@@ -1928,6 +1993,12 @@ function handleRecordingComplete() {
     correct: result.total >= 82,
     itemId: currentSpeakingItem.id,
     itemKind: currentSpeakingItem.en?.includes(" ") ? "sentence" : "word",
+    bookId: currentSpeakingItem.bookId || speakingScope?.bookId || inferBookId(currentSpeakingItem),
+    unitId: currentSpeakingItem.unitId || speakingScope?.unitId || inferUnitId(currentSpeakingItem.id),
+    scopeId: speakingScope?.scopeId || state.selectedSpeakingScopeId || "",
+    scopeType: speakingScope?.scopeType || currentSpeakingItem.scopeType || "",
+    sourceLabel: speakingScope?.title || currentSpeakingItem.sourceLabel || "",
+    sourceMode: "speaking",
     skill: "speaking",
     scoringStatus: state.settings.speechProvider === "demo" ? "simulated" : "scored",
     score: result,
@@ -2164,6 +2235,10 @@ function exportRecords() {
   const exportDate = formatLocalDate(exportedAt);
   const previousExportedAt = state.lastLogExportAt || "";
   const exportRecords = getRecordsSinceLastExport(previousExportedAt);
+  if (!exportRecords.length) {
+    showToast("暂无新学习记录可导出");
+    return;
+  }
   const payload = buildFeishuLearningLog(exportedAt, exportDate, exportRecords, previousExportedAt);
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -2174,6 +2249,8 @@ function exportRecords() {
   URL.revokeObjectURL(url);
   state.lastLogExportAt = exportedAt.toISOString();
   saveState();
+  showToast("学习日志已导出");
+  if (state.activeRoute === "parent") renderParent();
 }
 
 function buildFeishuLearningLog(exportedAt, exportDate, records, previousExportedAt) {
@@ -2824,6 +2901,7 @@ function loadState() {
       learnedItems: stored?.learnedItems || {},
       selectedReview: stored?.selectedReview || null,
       selectedScope: stored?.selectedScope || null,
+      selectedSpeakingScopeId: stored?.selectedSpeakingScopeId || "",
       itemStats: stored?.itemStats || {},
       sessionSummaries: stored?.sessionSummaries || []
     };
