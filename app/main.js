@@ -742,7 +742,49 @@ const oldKnowledgeReviewPlan = {
   weaknessGapFillOrder: ["word", "sentence", "word", "phrase", "sentence", "textDialogue"]
 };
 
+const oldKnowledgeReviewTypePlan = {
+  word: [
+    ["listen_choose_word", 4],
+    ["en_to_zh", 4],
+    ["zh_to_en", 3],
+    ["listen_spell_word", 3],
+    ["zh_spell_word", 3],
+    ["context_choose_word", 1],
+    ["phonics_shape_confusion_word", 1],
+    ["semantic_confusion_word", 1]
+  ],
+  phrase: [
+    ["listen_choose_phrase", 1],
+    ["zh_to_phrase", 1],
+    ["phrase_fill_blank", 2],
+    ["phrase_in_sentence", 1],
+    ["context_choose_phrase", 1]
+  ],
+  sentence: [
+    ["listen_sentence_meaning", 3],
+    ["sentence_en_to_zh", 3],
+    ["sentence_fill_blank", 5],
+    ["reorder_words", 3],
+    ["zh_key_expression", 3],
+    ["context_choose_sentence", 2],
+    ["grammar_punctuation_confusion", 1]
+  ],
+  textDialogue: [
+    ["text_dialogue_listen_read", 1],
+    ["text_dialogue_order", 1],
+    ["story_true_false", 1],
+    ["story_detail_choice", 1],
+    ["dialogue_fill_blank", 1],
+    ["role_scene_transfer", 1]
+  ]
+};
+
 function getWarmupQuestions() {
+  const packageReviewQuestions = getPackagedOldKnowledgeReviewPracticeQuestions();
+  if (packageReviewQuestions.length) {
+    return packageReviewQuestions.slice(0, oldKnowledgeReviewPlan.total);
+  }
+
   const mistakes = getActiveMistakes().slice(0, oldKnowledgeReviewPlan.weakness).map(mistakeToQuestion);
   const targets = { ...oldKnowledgeReviewPlan.targets };
   const weaknessGap = Math.max(0, oldKnowledgeReviewPlan.weakness - mistakes.length);
@@ -777,6 +819,103 @@ function getWarmupQuestions() {
     .slice(0, plannedCount)
     .map((item) => questionForLearnedItem(item, { badge: "旧知复习", scopeId: "review-mixed-3-4" }));
   return uniqueQuestions([...mistakes, ...reviewQuestions]).slice(0, oldKnowledgeReviewPlan.total);
+}
+
+function getPackagedOldKnowledgeReviewPracticeQuestions() {
+  const taskQuestions = getPackagedOldKnowledgeReviewQuestions();
+  if (!taskQuestions.length) return [];
+  return taskQuestions
+    .slice(0, oldKnowledgeReviewPlan.total)
+    .map((question) => packageQuestionToPractice(question, "旧知复习", "review"));
+}
+
+function buildOldKnowledgeReviewQuestionsFromPackage(targets) {
+  const taskQuestions = getPackagedOldKnowledgeReviewQuestions();
+  if (!taskQuestions.length) return [];
+  const selected = [];
+  const used = new Set();
+  Object.entries(targets).forEach(([kind, target]) => {
+    const plan = scaleQuestionTypePlan(oldKnowledgeReviewTypePlan[kind] || [], target);
+    plan.forEach(([questionType, count]) => {
+      pickReviewPackageQuestions(taskQuestions, kind, questionType, count, used).forEach((question) => {
+        used.add(question.questionId);
+        selected.push(question);
+      });
+    });
+    const remaining = target - selected.filter((question) => reviewPackageQuestionCategory(question) === kind).length;
+    if (remaining > 0) {
+      pickReviewPackageQuestions(taskQuestions, kind, null, remaining, used).forEach((question) => {
+        used.add(question.questionId);
+        selected.push(question);
+      });
+    }
+  });
+  return interleaveReviewPackageQuestions(selected)
+    .slice(0, Object.values(targets).reduce((sum, count) => sum + count, 0))
+    .map((question) => packageQuestionToPractice(question, "旧知复习", "review"));
+}
+
+function getPackagedOldKnowledgeReviewQuestions() {
+  const taskQuestions = data?.studyPackage?.totalLibraryTasks?.oldKnowledgeReview?.questions || [];
+  if (taskQuestions.length) return sortPackageQuestions(taskQuestions);
+  const questionIds =
+    data?.studyPackage?.current?.steps?.find((step) => step.id === "old-knowledge-review")?.questionIds || [];
+  const reviewPackage = getTotalPackage("review");
+  const questions = reviewPackage?.questions || [];
+  if (!questionIds.length || !questions.length) return [];
+  const byId = new Map(questions.map((question) => [question.questionId, question]));
+  return questionIds.map((questionId) => byId.get(questionId)).filter(Boolean);
+}
+
+function scaleQuestionTypePlan(basePlan, target) {
+  const baseTotal = basePlan.reduce((sum, [, count]) => sum + count, 0);
+  if (!baseTotal || target <= 0) return [];
+  const scaled = basePlan.map(([questionType, count]) => ({
+    questionType,
+    exact: (count * target) / baseTotal,
+    count: Math.floor((count * target) / baseTotal)
+  }));
+  let remaining = target - scaled.reduce((sum, item) => sum + item.count, 0);
+  scaled
+    .sort((a, b) => b.exact - b.count - (a.exact - a.count))
+    .forEach((item) => {
+      if (remaining <= 0) return;
+      item.count += 1;
+      remaining -= 1;
+    });
+  return scaled.map((item) => [item.questionType, item.count]).filter(([, count]) => count > 0);
+}
+
+function pickReviewPackageQuestions(questions, kind, questionType, count, used) {
+  return questions
+    .filter((question) => !used.has(question.questionId))
+    .filter((question) => reviewPackageQuestionCategory(question) === kind)
+    .filter((question) => !questionType || question.questionType === questionType)
+    .slice(0, count);
+}
+
+function reviewPackageQuestionCategory(question) {
+  if (question.questionCategory === "text-dialogue") return "textDialogue";
+  if (question.questionCategory === "word" || question.itemKind === "word") return "word";
+  if (question.questionCategory === "phrase" || question.itemKind === "phrase") return "phrase";
+  return "sentence";
+}
+
+function interleaveReviewPackageQuestions(questions) {
+  const categories = ["word", "sentence", "phrase", "textDialogue"];
+  const buckets = Object.fromEntries(categories.map((category) => [category, questions.filter((question) => reviewPackageQuestionCategory(question) === category)]));
+  const mixed = [];
+  while (categories.some((category) => buckets[category].length)) {
+    categories.forEach((category) => {
+      const next = buckets[category].shift();
+      if (next) mixed.push(next);
+    });
+  }
+  return mixed;
+}
+
+function sortPackageQuestions(questions) {
+  return [...questions].sort((a, b) => String(a.sortKey || a.questionId).localeCompare(String(b.sortKey || b.questionId), "en", { numeric: true }));
 }
 
 function pickReviewItems(items, kind, limit, selectedIds) {
@@ -1951,7 +2090,7 @@ function buildFiveAPreviewQuestions(gatePhase) {
       .sort((a, b) => String(a.sortKey || a.questionId).localeCompare(String(b.sortKey || b.questionId), "en", { numeric: true }))
   );
   const limit = gatePhase === "light_practice" ? 30 : 10;
-  return questions.slice(0, limit).map((question) => packageQuestionToPractice(question, gatePhase === "light_practice" ? "轻测" : "小测"));
+  return questions.slice(0, limit).map((question) => packageQuestionToPractice(question, gatePhase === "light_practice" ? "轻测" : "小测", "preview"));
 }
 
 function buildFiveAStrengthQuestions() {
@@ -1967,32 +2106,34 @@ function buildFiveAStrengthQuestions() {
     .filter((question) => allowedIds.has(question.mainItemId))
     .sort((a, b) => String(a.sortKey || a.questionId).localeCompare(String(b.sortKey || b.questionId), "en", { numeric: true }))
     .slice(state.nextTaskCursor?.fiveAStrengthIndex || 0, (state.nextTaskCursor?.fiveAStrengthIndex || 0) + 30)
-    .map((question) => packageQuestionToPractice(question, "五上加强"));
+    .map((question) => packageQuestionToPractice(question, "五上加强", "strength"));
 }
 
-function packageQuestionToPractice(question, badge) {
-  const item = getPreviewItem(question.mainItemId) || {};
+function packageQuestionToPractice(question, badge, packageKind = "preview") {
+  const itemId = question.mainItemId || question.itemId;
+  const item = getPackageItem(packageKind, itemId) || {};
   const hasChoices = Array.isArray(question.choices) && question.choices.length > 0;
   const isListening = /listen|听音|听句/.test(`${question.questionType} ${question.prompt}`);
-  const isSpelling = !hasChoices || /spell|fill|默写|补英文/.test(`${question.questionType} ${question.prompt}`);
+  const isSpelling = !hasChoices || /spell|fill|reorder|key_expression|默写|补|连词/.test(`${question.questionType} ${question.prompt}`);
+  const answer = question.answer || question.targetText || item.en || "";
   return {
-    type: hasChoices ? (isListening ? "listen-choice" : "meaning-choice") : "spell",
-    title: question.prompt || question.questionType,
+    type: hasChoices ? (isListening ? "listen-choice" : "meaning-choice") : isSpelling ? "spell" : "meaning-choice",
+    title: reviewQuestionTitle(question) || question.prompt || question.questionType,
     badge,
     level: question.difficulty || question.masteryFace || "练习",
-    prompt: isListening && hasChoices ? "听录音，选择正确答案" : question.prompt || item.zh || "",
-    answer: question.answer,
-    audioText: question.audioText || item.en || question.answer,
+    prompt: isListening && hasChoices ? "听录音，选择正确答案" : question.prompt || question.targetMeaning || item.zh || "",
+    answer,
+    audioText: question.audioText || question.targetText || item.en || answer,
     choices: hasChoices ? shuffle(uniqueValues(question.choices)) : [],
-    itemId: question.mainItemId,
+    itemId,
     questionId: question.questionId,
     itemKind: question.itemKind || item.itemKind || "word",
     bookId: question.bookId || item.bookId,
     unitId: question.unitId || item.unitId,
     scopeId: question.scopeId || item.scopeId,
-    scopeType: item.scopeType || "fiveAUnit",
-    track: item.track || "preview",
-    gateStatus: state.previewItemStatus?.[question.mainItemId]?.gateStatus || {},
+    scopeType: question.scopeType || item.scopeType || (packageKind === "review" ? "bookReview" : "fiveAUnit"),
+    track: item.track || question.track || (packageKind === "review" ? "review" : "preview"),
+    gateStatus: packageKind === "preview" ? state.previewItemStatus?.[itemId]?.gateStatus || {} : question.gateStatus || null,
     practiceFace: question.practiceFace || question.masteryFace || "",
     questionType: question.questionType,
     attemptIndex: question.attemptIndex || 1,
@@ -2000,6 +2141,45 @@ function packageQuestionToPractice(question, badge) {
     skill: mapQuestionSkill(question),
     autoPlay: isListening || /listen/.test(question.questionType)
   };
+}
+
+function getPackageItem(packageKind, itemId) {
+  if (!itemId) return null;
+  const packageData = getTotalPackage(packageKind);
+  return (packageData?.items || []).find((item) => item.itemId === itemId || item.id === itemId) || null;
+}
+
+function reviewQuestionTitle(question) {
+  const labels = {
+    listen_choose_word: "听音选词",
+    en_to_zh: "看英文选中文",
+    zh_to_en: "看中文选英文",
+    listen_spell_word: "听音写英文",
+    zh_spell_word: "看中文写英文",
+    context_choose_word: "场景选词",
+    phonics_shape_confusion_word: "易混辨析",
+    semantic_confusion_word: "易混辨析",
+    listen_choose_phrase: "听音选短语",
+    zh_to_phrase: "看中文选短语",
+    phrase_fill_blank: "短语补全",
+    phrase_in_sentence: "短语放入句子",
+    context_choose_phrase: "场景短语",
+    confusion_phrase: "易混短语",
+    listen_sentence_meaning: "听句选意思",
+    sentence_en_to_zh: "看英文选中文",
+    sentence_fill_blank: "句子补空",
+    reorder_words: "连词成句",
+    zh_key_expression: "看中文写核心表达",
+    context_choose_sentence: "场景选句",
+    grammar_punctuation_confusion: "句型易混",
+    text_dialogue_listen_read: "课文听读理解",
+    text_dialogue_order: "课文排序",
+    story_true_false: "课文判断",
+    story_detail_choice: "细节理解",
+    dialogue_fill_blank: "对话补全",
+    role_scene_transfer: "角色场景迁移"
+  };
+  return labels[question.questionType] || "";
 }
 
 function mapQuestionSkill(question) {
@@ -2259,7 +2439,7 @@ function buildDueReviewQuestions(items, limit) {
 function uniqueQuestions(questions) {
   const seen = new Set();
   return questions.filter((question) => {
-    const key = `${question.itemId}-${question.skill}-${question.answer}`;
+    const key = question.questionId || `${question.itemId}-${question.questionType || question.type}-${question.skill}-${question.answer}-${question.attemptIndex || 1}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -3885,7 +4065,13 @@ function inferUnitId(itemId = "") {
 }
 
 function normalize(value) {
-  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/['"’‘“”`´]/g, "")
+    .replace(/[-—–_/\\]/g, " ")
+    .replace(/[.,!?;:()[\]{}…·•]/g, "")
+    .replace(/\s+/g, " ");
 }
 
 function escapeAttr(value) {
