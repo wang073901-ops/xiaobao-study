@@ -130,6 +130,21 @@ button:disabled {
   background: #fff;
 }
 
+.resume-banner {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(37, 111, 91, 0.26);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.resume-banner .secondary-button,
+.resume-banner .ghost-button {
+  width: fit-content;
+}
+
 .status-dot {
   width: 10px;
   height: 10px;

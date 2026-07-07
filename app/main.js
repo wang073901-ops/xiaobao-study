@@ -7,9 +7,9 @@ const TOTAL_PREVIEW_MANIFEST_URL = new URL("data/learning-packages/latest-total-
 const TOTAL_STRENGTH_MANIFEST_URL = new URL("data/learning-packages/latest-total-5a-strength-package.json", APP_BASE_URL).href;
 const STORAGE_KEY = "smart-study-state-v1";
 const SPEECH_PROFILE_VERSION = "female-en-gb-slow-v1";
-const DEFAULT_SPEECH_RATE = 0.58;
-const SLOW_SPEECH_RATE = 0.46;
-const FEMALE_BRITISH_VOICES = /serena|susan|martha|kate|shelley|stephanie|sarah|victoria|emma|amy|ava|female/i;
+const DEFAULT_SPEECH_RATE = 0.54;
+const SLOW_SPEECH_RATE = 0.42;
+const FEMALE_BRITISH_VOICES = /serena|susan|martha|kate|shelley|stephanie|sarah|victoria|emma|amy|ava|samantha|karen|moira|zira|aria|jenny|sonia|libby|maisie|female/i;
 const MALE_VOICES = /daniel|arthur|oliver|george|tom|male/i;
 
 const routes = {
@@ -51,6 +51,12 @@ const defaultState = {
   lastCompletedTaskId: "",
   activeLearningPackageId: "",
   activeLearningPackageVersion: "",
+  testMode: true,
+  testModeResetVersion: "",
+  roundRecords: [],
+  currentReviewRound: null,
+  reviewRoundCursor: 0,
+  reviewResume: null,
   previewItemStatus: {},
   lightWeakFaces: {},
   selectedMistakeCategory: "all",
@@ -109,6 +115,7 @@ init();
 async function init() {
   data = await loadLearningPackage();
   await loadTotalLearningPackages();
+  ensureTestModeReset();
   const firstVerifiedUnit = getFirstVerifiedUnit();
   currentSpeakingItem = firstVerifiedUnit?.words?.[0] || {
     id: "material-pending",
@@ -120,6 +127,40 @@ async function init() {
   setupSpeechVoices();
   renderAll();
   navigate("home");
+}
+
+function ensureTestModeReset() {
+  if (!state.testMode) return;
+  if (state.testModeResetVersion === APP_VERSION) return;
+  const keep = {
+    cachedLearningPackage: state.cachedLearningPackage,
+    learningPackageVersion: state.learningPackageVersion,
+    contentHash: state.contentHash,
+    updateLog: state.updateLog || [],
+    studentName: state.studentName || "",
+    importedPackages: state.importedPackages || [],
+    settings: state.settings || defaultState.settings,
+    activeLearningPackageId: state.activeLearningPackageId || "",
+    activeLearningPackageVersion: state.activeLearningPackageVersion || "",
+    selectedSpeakingScopeId: state.selectedSpeakingScopeId || ""
+  };
+  const resetAt = new Date().toISOString();
+  state = {
+    ...defaultState,
+    ...keep,
+    testMode: true,
+    testModeResetVersion: APP_VERSION,
+    resetLog: [
+      ...(state.resetLog || []),
+      {
+        resetAt,
+        resetKind: "test_mode_auto_reset",
+        reason: "进入测试阶段，清除旧试用学习记录，保留学习包和设置"
+      }
+    ]
+  };
+  currentPractice = null;
+  saveState();
 }
 
 async function loadLearningPackage() {
@@ -731,15 +772,13 @@ function speakingScopeOptions(selectedScopeId) {
 }
 
 const oldKnowledgeReviewPlan = {
-  total: 58,
-  weakness: 6,
+  total: 60,
   targets: {
-    word: 20,
-    phrase: 6,
-    sentence: 20,
-    textDialogue: 6
-  },
-  weaknessGapFillOrder: ["word", "sentence", "word", "phrase", "sentence", "textDialogue"]
+    word: 24,
+    phrase: 7,
+    sentence: 22,
+    textDialogue: 7
+  }
 };
 
 const oldKnowledgeReviewTypePlan = {
@@ -747,35 +786,31 @@ const oldKnowledgeReviewTypePlan = {
     ["listen_choose_word", 4],
     ["en_to_zh", 4],
     ["zh_to_en", 3],
-    ["listen_spell_word", 3],
-    ["zh_spell_word", 3],
+    ["listen_spell_word", 5],
+    ["zh_spell_word", 5],
     ["context_choose_word", 1],
     ["phonics_shape_confusion_word", 1],
     ["semantic_confusion_word", 1]
   ],
   phrase: [
-    ["listen_choose_phrase", 1],
-    ["zh_to_phrase", 1],
-    ["phrase_fill_blank", 2],
-    ["phrase_in_sentence", 1],
-    ["context_choose_phrase", 1]
+    ["phrase_fill_blank", 3],
+    ["phrase_in_sentence", 2],
+    ["context_choose_phrase", 1],
+    ["confusion_phrase", 1]
   ],
   sentence: [
-    ["listen_sentence_meaning", 3],
-    ["sentence_en_to_zh", 3],
-    ["sentence_fill_blank", 5],
-    ["reorder_words", 3],
-    ["zh_key_expression", 3],
-    ["context_choose_sentence", 2],
-    ["grammar_punctuation_confusion", 1]
+    ["sentence_fill_blank", 7],
+    ["reorder_words", 4],
+    ["zh_key_expression", 5],
+    ["context_choose_sentence", 3],
+    ["grammar_punctuation_confusion", 3]
   ],
   textDialogue: [
     ["text_dialogue_listen_read", 1],
     ["text_dialogue_order", 1],
-    ["story_true_false", 1],
     ["story_detail_choice", 1],
-    ["dialogue_fill_blank", 1],
-    ["role_scene_transfer", 1]
+    ["dialogue_fill_blank", 2],
+    ["role_scene_transfer", 2]
   ]
 };
 
@@ -785,13 +820,7 @@ function getWarmupQuestions() {
     return packageReviewQuestions.slice(0, oldKnowledgeReviewPlan.total);
   }
 
-  const mistakes = getActiveMistakes().slice(0, oldKnowledgeReviewPlan.weakness).map(mistakeToQuestion);
   const targets = { ...oldKnowledgeReviewPlan.targets };
-  const weaknessGap = Math.max(0, oldKnowledgeReviewPlan.weakness - mistakes.length);
-  oldKnowledgeReviewPlan.weaknessGapFillOrder.slice(0, weaknessGap).forEach((kind) => {
-    targets[kind] = (targets[kind] || 0) + 1;
-  });
-
   const reviewItems = getReviewQuestionItems()
     .sort((a, b) => getItemMasteryScore(a.id, a.itemKind) - getItemMasteryScore(b.id, b.itemKind));
   const selectedItems = [];
@@ -804,7 +833,7 @@ function getWarmupQuestions() {
     });
   });
 
-  const plannedCount = oldKnowledgeReviewPlan.total - mistakes.length;
+  const plannedCount = oldKnowledgeReviewPlan.total;
   if (selectedItems.length < plannedCount) {
     reviewItems
       .filter((item) => !selectedIds.has(item.id))
@@ -818,15 +847,50 @@ function getWarmupQuestions() {
   const reviewQuestions = selectedItems
     .slice(0, plannedCount)
     .map((item) => questionForLearnedItem(item, { badge: "旧知复习", scopeId: "review-mixed-3-4" }));
-  return uniqueQuestions([...mistakes, ...reviewQuestions]).slice(0, oldKnowledgeReviewPlan.total);
+  return uniqueQuestions(reviewQuestions).slice(0, oldKnowledgeReviewPlan.total);
 }
 
 function getPackagedOldKnowledgeReviewPracticeQuestions() {
-  const taskQuestions = getPackagedOldKnowledgeReviewQuestions();
+  const { questions: taskQuestions, roundNo, roundId } = getCurrentOldKnowledgeReviewRound();
   if (!taskQuestions.length) return [];
   return taskQuestions
     .slice(0, oldKnowledgeReviewPlan.total)
-    .map((question) => packageQuestionToPractice(question, "旧知复习", "review"));
+    .map((question) =>
+      packageQuestionToPractice(
+        {
+          ...question,
+          roundNo: question.roundNo || roundNo,
+          roundId: question.roundId || roundId
+        },
+        "旧知复习",
+        "review"
+      )
+    );
+}
+
+function getCurrentOldKnowledgeReviewRound() {
+  const oldKnowledgeReview = data?.studyPackage?.totalLibraryTasks?.oldKnowledgeReview || {};
+  const rounds = Array.isArray(oldKnowledgeReview.rounds) ? oldKnowledgeReview.rounds : [];
+  const cursor = Math.max(0, state.reviewRoundCursor || 0);
+  if (rounds.length) {
+    const index = Math.min(cursor, rounds.length - 1);
+    const round = rounds[index] || {};
+    const questions = (round.questions || []).filter((question) => !isStandaloneAlphabetDrill(question));
+    return {
+      questions,
+      roundNo: round.roundNo || index + 1,
+      roundId: round.roundId || `old-review-round-${index + 1}`,
+      totalRounds: rounds.length,
+      complete: cursor >= rounds.length
+    };
+  }
+  return {
+    questions: getPackagedOldKnowledgeReviewQuestions(),
+    roundNo: cursor + 1,
+    roundId: `old-review-round-${cursor + 1}`,
+    totalRounds: 1,
+    complete: false
+  };
 }
 
 function buildOldKnowledgeReviewQuestionsFromPackage(targets) {
@@ -857,11 +921,11 @@ function buildOldKnowledgeReviewQuestionsFromPackage(targets) {
 
 function getPackagedOldKnowledgeReviewQuestions() {
   const taskQuestions = data?.studyPackage?.totalLibraryTasks?.oldKnowledgeReview?.questions || [];
-  if (taskQuestions.length) return sortPackageQuestions(taskQuestions);
+  if (taskQuestions.length) return sortPackageQuestions(taskQuestions).filter((question) => !isStandaloneAlphabetDrill(question));
   const questionIds =
     data?.studyPackage?.current?.steps?.find((step) => step.id === "old-knowledge-review")?.questionIds || [];
   const reviewPackage = getTotalPackage("review");
-  const questions = reviewPackage?.questions || [];
+  const questions = (reviewPackage?.questions || []).filter((question) => !isStandaloneAlphabetDrill(question));
   if (!questionIds.length || !questions.length) return [];
   const byId = new Map(questions.map((question) => [question.questionId, question]));
   return questionIds.map((questionId) => byId.get(questionId)).filter(Boolean);
@@ -899,6 +963,17 @@ function reviewPackageQuestionCategory(question) {
   if (question.questionCategory === "word" || question.itemKind === "word") return "word";
   if (question.questionCategory === "phrase" || question.itemKind === "phrase") return "phrase";
   return "sentence";
+}
+
+function isStandaloneAlphabetDrill(question) {
+  const target = question.targetText || question.answer || "";
+  const compact = String(target).replace(/[\s,;；、-]/g, "");
+  const alphabetPairs = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz";
+  if (compact.length >= 4 && compact.length % 2 === 0) {
+    const pairs = compact.match(/[A-Z][a-z]/g) || [];
+    if (pairs.join("") === compact && pairs.every((pair) => alphabetPairs.includes(pair))) return true;
+  }
+  return /letters?\s+in\s+focus/i.test(`${question.section || ""} ${question.sourceText || ""}`) && /字母|letter/i.test(`${question.targetMeaning || ""} ${question.prompt || ""}`);
 }
 
 function interleaveReviewPackageQuestions(questions) {
@@ -978,20 +1053,22 @@ function renderHome() {
   const mastery = previewUnit ? getUnitMastery(previewUnit) : getUnitMastery(getFirstVerifiedUnit());
   const todayTasks = hasStrength
     ? [
-        taskItem(1, "旧知复习", "三四年级总复习 + 小漏洞回收", "58 题"),
-        taskItem(2, "五上加强测试", "只测已完成 gate 的内容", "30 题"),
-        taskItem(3, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
+        taskItem(1, "旧知复习", "三四年级固定总复习", "60 题"),
+        taskItem(2, "小漏洞回收", weakCount ? `${weakCount} 个小点优先` : "暂无则跳过", "动态追加"),
+        taskItem(3, "五上加强测试", "只测已完成 gate 的内容", "30 题"),
+        taskItem(4, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
       ].join("")
     : hasPreview
     ? [
-        taskItem(1, "旧知复习", "三四年级总复习 + 小漏洞回收", "58 题"),
-        taskItem(2, "五上预习学习", `${previewChunk.title || "五上词表项预习"}：听懂读`, "10 项"),
-        taskItem(3, "轻测", "英中互认 / 听音选词 / 看中文补英文", "30 题"),
-        taskItem(4, "小测", "看中文默写完整英文", "10 题"),
-        taskItem(5, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
+        taskItem(1, "旧知复习", "三四年级固定总复习", "60 题"),
+        taskItem(2, "小漏洞回收", weakCount ? `${weakCount} 个小点优先` : "暂无则跳过", "动态追加"),
+        taskItem(3, "五上预习学习", `${previewChunk.title || "五上词表项预习"}：听懂读`, "10 项"),
+        taskItem(4, "轻测", "英中互认 / 听音选词 / 看中文补英文", "30 题"),
+        taskItem(5, "小测", "看中文默写完整英文", "10 题"),
+        taskItem(6, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
       ].join("")
     : [
-        taskItem(1, "旧知复习", "只从已学池抽题，错开覆盖", "58 题"),
+        taskItem(1, "旧知复习", "只从已学池抽题，错开覆盖", "60 题"),
         taskItem(2, "小漏洞回收", weakCount ? `${weakCount} 个小点优先` : "薄弱点专项", "滚动复现"),
         taskItem(3, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
       ].join("");
@@ -1009,13 +1086,23 @@ function renderHome() {
           <button class="secondary-button" data-action="start-daily" ${materialReady ? "" : "disabled"}>每日总练习</button>
           <button class="secondary-button" data-route-link="speaking">口语跟读</button>
         </div>
+        ${
+          state.reviewResume
+            ? `<div class="resume-banner">
+                <strong>发现未完成的复习测试</strong>
+                <span>第 ${state.reviewResume.roundNo || 1} 轮，已答 ${state.reviewResume.results?.length || 0}/${state.reviewResume.total || 0} 题</span>
+                <button class="secondary-button" data-action="resume-review">继续上次测试</button>
+                <button class="ghost-button" data-action="abandon-review">结束并生成学习日志</button>
+              </div>`
+            : ""
+        }
       </section>
       <section class="panel">
         <h2>今日状态</h2>
         <div class="grid two">
           ${statCard("完成", `${state.completed} 组`, "今日练习记录")}
           ${statCard("最近稳定度", `${accuracy}%`, "家长参考数据")}
-          ${statCard("小漏洞", `${weakCount} 个`, "后面自动混入复习")}
+          ${statCard("小漏洞", `${weakCount} 个`, "旧知复习后独立回收")}
           ${statCard("掌握进度", `${mastery.percent}%`, `${mastery.mastered}/${mastery.total} 个核心点`)}
         </div>
       </section>
@@ -1058,6 +1145,19 @@ function renderHome() {
   appViews.home.querySelector("[data-action='start-daily']").addEventListener("click", () => {
     startPractice("daily");
   });
+  const resumeButton = appViews.home.querySelector("[data-action='resume-review']");
+  if (resumeButton) resumeButton.addEventListener("click", () => startPractice("warmup", { resume: true }));
+  const abandonButton = appViews.home.querySelector("[data-action='abandon-review']");
+  if (abandonButton) {
+    abandonButton.addEventListener("click", () => {
+      if (state.reviewResume) {
+        state.roundRecords = [...(state.roundRecords || []), buildRoundRecord(state.reviewResume, "abandoned")].slice(-120);
+        clearReviewResume();
+        saveState();
+      }
+      exportRecords({ includeAllToday: true });
+    });
+  }
   bindRouteLinks(appViews.home);
 }
 
@@ -1409,20 +1509,21 @@ function renderParent() {
 }
 
 function startTodayLearning() {
+  const hasWeakness = getActiveMistakes().length > 0;
   if (getFiveAStage() === "reinforcement") {
     if (!isFiveAReinforcementAllowed()) {
       showToast("五上加强要等 gate 完成后开放");
-      startPractice("warmup");
+      startPractice("warmup", { nextAfter: hasWeakness ? "weakness-only" : "" });
       return;
     }
-    startPractice("warmup", { nextAfter: "fiveA-strength" });
+    startPractice("warmup", { nextAfter: hasWeakness ? "weakness-then-fiveA-strength" : "fiveA-strength" });
     return;
   }
   if (getCurrentPreviewChunk()) {
-    startPractice("warmup", { nextAfter: "fiveA-preview" });
+    startPractice("warmup", { nextAfter: hasWeakness ? "weakness-then-fiveA-preview" : "fiveA-preview" });
     return;
   }
-  startPractice("warmup");
+  startPractice("warmup", { nextAfter: hasWeakness ? "weakness-only" : "" });
 }
 
 function startFiveAPreviewLesson() {
@@ -1610,7 +1711,7 @@ function buildLessonSteps(unit, chunk) {
             badge: "旧知复习",
             title: "先完成今天的旧知复习",
             goal: "三四年级总复习",
-            body: "这里使用三四年级总复习内容和到期小漏洞，不会混入还没完成 gate 的五上内容。答错会记入小漏洞，后面换方式再练。",
+            body: "这里固定使用三四年级总复习内容，不混入小漏洞，也不会混入还没完成 gate 的五上内容。答错会记入小漏洞，后面单独回收。",
             items: [],
             questionCount: warmupQuestions.length
           }
@@ -1731,12 +1832,30 @@ function startPractice(mode, options = {}) {
     navigate("english");
     return;
   }
+  if (mode === "warmup" && options.resume && state.reviewResume) {
+    currentPractice = {
+      ...state.reviewResume,
+      paused: false,
+      pauseStartedAt: null,
+      questionStartedAt: Date.now(),
+      currentQuestionActiveMs: state.reviewResume.currentQuestionActiveMs || 0
+    };
+    renderPractice();
+    navigate("practice");
+    pageTitle.textContent = "旧知复习";
+    eyebrow.textContent = "继续测试";
+    return;
+  }
   const pool = buildQuestionPool(mode);
   if (!pool.length) {
     showToast("这个环节的资料还不够，先做每日总练习");
     navigate("english");
     return;
   }
+  const now = new Date().toISOString();
+  const isReviewRound = mode === "warmup";
+  const roundNo = isReviewRound ? pool[0]?.roundNo || (state.reviewRoundCursor || 0) + 1 : null;
+  const roundId = isReviewRound ? pool[0]?.roundId || `old-review-round-${roundNo}` : "";
   currentPractice = {
     mode,
     nextAfter: options.nextAfter || "",
@@ -1746,8 +1865,20 @@ function startPractice(mode, options = {}) {
     total: pool.length,
     questions: pool,
     results: [],
-    answered: false
+    answered: false,
+    roundId,
+    roundNo,
+    roundStartedAt: now,
+    roundStatus: isReviewRound ? "in_progress" : "",
+    activeTimeMs: 0,
+    pauseCount: 0,
+    pauseDurationMs: 0,
+    paused: false,
+    pauseStartedAt: null,
+    questionStartedAt: Date.now(),
+    currentQuestionActiveMs: 0
   };
+  saveReviewResume();
   renderPractice();
   navigate("practice");
   pageTitle.textContent = modeTitle(mode);
@@ -1758,7 +1889,11 @@ function renderPractice() {
   stopAudioPlayback();
   const q = currentPractice.questions[currentPractice.index];
   currentPractice.answered = false;
+  currentPractice.questionStartedAt = Date.now();
+  currentPractice.currentQuestionActiveMs = currentPractice.currentQuestionActiveMs || 0;
+  saveReviewResume();
   const progress = Math.round((currentPractice.index / currentPractice.total) * 100);
+  const paused = Boolean(currentPractice.paused);
   appViews.practice.innerHTML = `
     <div class="practice-stage">
       <section class="panel">
@@ -1766,6 +1901,8 @@ function renderPractice() {
           <span class="badge">${currentPractice.index + 1} / ${currentPractice.total}</span>
           <span class="badge blue">${q.badge || questionTypeLabel(q.type)}</span>
           <span class="badge amber">已稳 ${currentPractice.correct}</span>
+          ${currentPractice.roundNo ? `<span class="badge">第 ${currentPractice.roundNo} 轮</span>` : ""}
+          ${state.testMode ? `<span class="badge amber">测试阶段</span>` : ""}
         </div>
         <div class="meter" style="margin-top:12px"><span style="--value:${progress}%"></span></div>
       </section>
@@ -1774,8 +1911,11 @@ function renderPractice() {
         <div class="button-row">
           <button class="secondary-button" data-action="play-question">再听一遍</button>
           <button class="secondary-button" data-action="play-slow">慢速再听</button>
+          <button class="secondary-button" data-action="help-question">看提示</button>
+          ${isReviewPractice() ? `<button class="secondary-button" data-action="${paused ? "resume-practice" : "pause-practice"}">${paused ? "继续" : "暂停"}</button>` : ""}
           <button class="ghost-button" data-action="exit-practice">回到英语</button>
         </div>
+        ${paused ? `<p class="muted" style="margin-top:12px">已暂停，暂停时间不计入答题耗时。</p>` : ""}
       </section>
     </div>
   `;
@@ -1786,11 +1926,23 @@ function renderPractice() {
   appViews.practice.querySelector("[data-action='play-slow']").addEventListener("click", async (event) => {
     await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(q.audioText, { rate: SLOW_SPEECH_RATE }));
   });
-  appViews.practice.querySelector("[data-action='exit-practice']").addEventListener("click", () => navigate("english"));
+  appViews.practice.querySelector("[data-action='help-question']").addEventListener("click", handleHelpRequest);
+  const pauseButton = appViews.practice.querySelector("[data-action='pause-practice']");
+  if (pauseButton) pauseButton.addEventListener("click", pausePractice);
+  const resumeButton = appViews.practice.querySelector("[data-action='resume-practice']");
+  if (resumeButton) resumeButton.addEventListener("click", resumePractice);
+  appViews.practice.querySelector("[data-action='exit-practice']").addEventListener("click", () => {
+    if (isReviewPractice()) {
+      markReviewInterrupted();
+      saveReviewResume();
+    }
+    navigate("english");
+  });
   appViews.practice.querySelectorAll("[data-answer]").forEach((button) => {
     button.addEventListener("click", () => handleAnswer(button.dataset.answer, button));
   });
   setupLetterKeyboard();
+  if (paused) lockCurrentQuestionControls();
 }
 
 function questionTemplate(q) {
@@ -1859,6 +2011,10 @@ function setupLetterKeyboard() {
   appViews.practice.querySelectorAll("[data-key]").forEach((button) => {
     button.addEventListener("click", () => {
       if (!currentPractice || currentPractice.answered) return;
+      if (currentPractice.paused) {
+        showToast("已暂停，点继续后再答题");
+        return;
+      }
       const key = button.dataset.key;
       let value = answer.dataset.value || "";
       if (key === "confirm") {
@@ -1887,17 +2043,157 @@ function scheduleQuestionAudio(question) {
   const scheduledSequence = playbackSequenceId;
   setTimeout(() => {
     if (!currentPractice || currentPractice.answered) return;
+    if (currentPractice.paused) return;
     if (playbackSequenceId !== scheduledSequence) return;
     if (currentPractice.questions[currentPractice.index] !== question) return;
     speakLikeTeacher(question.audioText, { repeat: 1, silentToast: true });
   }, 250);
 }
 
-function handleAnswer(answer, button) {
+function isReviewPractice(practice = currentPractice) {
+  return practice?.mode === "warmup";
+}
+
+function saveReviewResume(status = "interrupted") {
+  if (!isReviewPractice()) return;
+  state.reviewResume = {
+    ...currentPractice,
+    roundStatus: currentPractice.paused ? "paused" : status,
+    lastSavedAt: new Date().toISOString(),
+    interruptedAt: status === "interrupted" ? new Date().toISOString() : currentPractice.interruptedAt || null
+  };
+  saveState();
+}
+
+function clearReviewResume() {
+  state.reviewResume = null;
+}
+
+function markReviewInterrupted() {
+  if (!isReviewPractice()) return;
+  currentPractice.roundStatus = "interrupted";
+  currentPractice.interruptedAt = new Date().toISOString();
+}
+
+function pausePractice() {
+  if (!isReviewPractice() || currentPractice.paused || currentPractice.answered) return;
+  stopAudioPlayback();
+  const now = Date.now();
+  currentPractice.currentQuestionActiveMs += Math.max(0, now - (currentPractice.questionStartedAt || now));
+  currentPractice.paused = true;
+  currentPractice.pauseStartedAt = now;
+  currentPractice.pauseCount += 1;
+  currentPractice.roundStatus = "paused";
+  saveReviewResume("paused");
+  renderPractice();
+}
+
+function resumePractice() {
+  if (!isReviewPractice() || !currentPractice.paused) return;
+  const now = Date.now();
+  currentPractice.pauseDurationMs += Math.max(0, now - (currentPractice.pauseStartedAt || now));
+  currentPractice.paused = false;
+  currentPractice.pauseStartedAt = null;
+  currentPractice.questionStartedAt = now;
+  currentPractice.roundStatus = "in_progress";
+  saveReviewResume("interrupted");
+  renderPractice();
+}
+
+function lockCurrentQuestionControls() {
+  appViews.practice.querySelectorAll("[data-answer], [data-key], [data-action='help-question']").forEach((button) => {
+    button.disabled = true;
+  });
+}
+
+function unlockCurrentQuestionControls() {
+  appViews.practice.querySelectorAll("[data-answer], [data-key], [data-action='help-question']").forEach((button) => {
+    button.disabled = false;
+  });
+}
+
+function getCurrentQuestionTimeSpentMs() {
+  if (!currentPractice) return 0;
+  const now = Date.now();
+  const activeSinceLastStart = currentPractice.paused ? 0 : Math.max(0, now - (currentPractice.questionStartedAt || now));
+  return Math.max(0, Math.round((currentPractice.currentQuestionActiveMs || 0) + activeSinceLastStart));
+}
+
+function handleHelpRequest() {
   if (!currentPractice || currentPractice.answered) return;
+  if (currentPractice.paused) {
+    showToast("已暂停，点继续后再看提示");
+    return;
+  }
   stopAudioPlayback();
   currentPractice.answered = true;
   const q = currentPractice.questions[currentPractice.index];
+  const timeSpentMs = getCurrentQuestionTimeSpentMs();
+  lockCurrentQuestionControls();
+  handleWrongAnswer({ ...q, helpUsed: true, wrongReason: "unfamiliar" });
+  const feedback = appViews.practice.querySelector("#answerFeedback");
+  if (feedback) {
+    feedback.className = "answer-feedback warn";
+    feedback.textContent = `先记下来，正确答案是：${q.answer}`;
+  }
+  state.records.push({
+    id: `r-${Date.now()}`,
+    mode: currentPractice.mode,
+    exportKind: state.testMode ? "test" : "formal",
+    scopeType: currentPractice.scope?.scopeType || q.scopeType || null,
+    sourceMode: currentPractice.scope?.sourceMode || q.sourceMode || currentPractice.mode,
+    sourceLabel: currentPractice.scope?.sourceLabel || "",
+    question: q.prompt,
+    answer: "",
+    expected: q.answer,
+    correct: false,
+    questionId: q.questionId || "",
+    itemId: q.itemId,
+    itemKind: q.itemKind,
+    bookId: q.bookId || currentPractice.scope?.bookId || inferBookId(q),
+    unitId: q.unitId || currentPractice.scope?.unitId || inferUnitId(q.itemId),
+    scopeId: currentPractice.scope?.scopeId || q.scopeId || null,
+    skill: q.skill,
+    questionType: q.questionType || q.type,
+    testKey: q.testKey || "",
+    abilityFace: q.abilityFace || q.practiceFace || "",
+    result: "skipped",
+    wrongReason: "unfamiliar",
+    timeSpentMs,
+    answeredAt: new Date().toISOString(),
+    roundId: currentPractice.roundId || q.roundId || "",
+    roundNo: currentPractice.roundNo || q.roundNo || null,
+    helpUsed: true,
+    enteredWeaknessPool: true,
+    practiceFace: q.practiceFace || "",
+    attemptIndex: q.attemptIndex || 1,
+    gateStatus: q.gateStatus || null,
+    chunkId: q.chunkId || currentLesson?.chunkId,
+    at: new Date().toISOString()
+  });
+  currentPractice.results.push({ question: q, correct: false, result: "skipped", timeSpentMs, helpUsed: true });
+  currentPractice.activeTimeMs += timeSpentMs;
+  currentPractice.currentQuestionActiveMs = 0;
+  saveReviewResume("interrupted");
+  saveState();
+  showToast("先记下来，后面换方式再见它");
+  setTimeout(() => {
+    currentPractice.index += 1;
+    if (currentPractice.index >= currentPractice.total) finishPractice();
+    else renderPractice();
+  }, 1400);
+}
+
+function handleAnswer(answer, button) {
+  if (!currentPractice || currentPractice.answered) return;
+  if (currentPractice.paused) {
+    showToast("已暂停，点继续后再答题");
+    return;
+  }
+  stopAudioPlayback();
+  currentPractice.answered = true;
+  const q = currentPractice.questions[currentPractice.index];
+  const timeSpentMs = getCurrentQuestionTimeSpentMs();
   const normalized = normalize(answer);
   const expected = normalize(q.answer);
   const ok = normalized === expected;
@@ -1909,6 +2205,7 @@ function handleAnswer(answer, button) {
   const spellInput = appViews.practice.querySelector("#spellAnswer");
   const spellSubmit = appViews.practice.querySelector("[data-action='submit-spell']");
   if (spellInput) spellInput.classList.add("locked");
+  if (spellInput && "disabled" in spellInput) spellInput.disabled = true;
   if (spellSubmit) spellSubmit.disabled = true;
   appViews.practice.querySelectorAll("[data-key]").forEach((keyButton) => {
     keyButton.disabled = true;
@@ -1932,6 +2229,7 @@ function handleAnswer(answer, button) {
   state.records.push({
     id: `r-${Date.now()}`,
     mode: currentPractice.mode,
+    exportKind: state.testMode ? "test" : "formal",
     scopeType: currentPractice.scope?.scopeType || q.scopeType || null,
     sourceMode: currentPractice.scope?.sourceMode || q.sourceMode || currentPractice.mode,
     sourceLabel: currentPractice.scope?.sourceLabel || "",
@@ -1939,6 +2237,7 @@ function handleAnswer(answer, button) {
     answer,
     expected: q.answer,
     correct: ok,
+    questionId: q.questionId || "",
     itemId: q.itemId,
     itemKind: q.itemKind,
     bookId: q.bookId || currentPractice.scope?.bookId || inferBookId(q),
@@ -1946,6 +2245,15 @@ function handleAnswer(answer, button) {
     scopeId: currentPractice.scope?.scopeId || q.scopeId || null,
     skill: q.skill,
     questionType: q.questionType || q.type,
+    testKey: q.testKey || "",
+    abilityFace: q.abilityFace || q.practiceFace || "",
+    result: ok ? "correct" : "wrong",
+    timeSpentMs,
+    answeredAt: new Date().toISOString(),
+    roundId: currentPractice.roundId || q.roundId || "",
+    roundNo: currentPractice.roundNo || q.roundNo || null,
+    helpUsed: false,
+    enteredWeaknessPool: !ok,
     practiceFace: q.practiceFace || "",
     attemptIndex: q.attemptIndex || 1,
     gateStatus: q.gateStatus || null,
@@ -1955,7 +2263,10 @@ function handleAnswer(answer, button) {
     masteryStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.masteryStatus,
     at: new Date().toISOString()
   });
-  currentPractice.results.push({ question: q, correct: ok });
+  currentPractice.results.push({ question: q, correct: ok, result: ok ? "correct" : "wrong", timeSpentMs });
+  currentPractice.activeTimeMs += timeSpentMs;
+  currentPractice.currentQuestionActiveMs = 0;
+  saveReviewResume("interrupted");
   saveState();
 
   setTimeout(() => {
@@ -1970,6 +2281,10 @@ function finishPractice() {
   const sessionSummary = buildSessionSummary(currentPractice, score);
   const nextAfter = currentPractice.nextAfter || "";
   const showSubmitLog = !nextAfter;
+  const finishedReviewPractice = isReviewPractice();
+  if (finishedReviewPractice) {
+    completeReviewRound();
+  }
   state.completed += 1;
   state.streak = Math.max(1, state.streak + 1);
   state.sessionSummaries.push(sessionSummary);
@@ -1977,7 +2292,9 @@ function finishPractice() {
   updateUnitProgressAfterPractice(currentPractice, score);
   saveState();
   renderAll();
-  appViews.practice.innerHTML = `
+  appViews.practice.innerHTML = finishedReviewPractice
+    ? reviewRoundFinishedTemplate(score, sessionSummary)
+    : `
     <section class="question-card">
       <div>
         <span class="badge ${score === 100 ? "" : "amber"}">${score === 100 ? "这一组很稳" : "已生成后续复现"}</span>
@@ -2002,6 +2319,14 @@ function finishPractice() {
     </section>
   `;
   bindRouteLinks(appViews.practice);
+  const continueReviewButton = appViews.practice.querySelector("[data-action='continue-review-round']");
+  if (continueReviewButton) {
+    continueReviewButton.addEventListener("click", () => startPractice("warmup"));
+  }
+  const enterPreviewButton = appViews.practice.querySelector("[data-action='enter-preview']");
+  if (enterPreviewButton) {
+    enterPreviewButton.addEventListener("click", () => continueTodayFlow(nextAfter || "fiveA-preview"));
+  }
   const continueButton = appViews.practice.querySelector("[data-action='continue-today-flow']");
   if (continueButton) {
     continueButton.addEventListener("click", () => continueTodayFlow(nextAfter));
@@ -2012,13 +2337,86 @@ function finishPractice() {
   }
 }
 
+function completeReviewRound() {
+  const endedAt = new Date().toISOString();
+  const roundRecord = buildRoundRecord(currentPractice, "completed", endedAt);
+  state.roundRecords = [...(state.roundRecords || []), roundRecord].slice(-120);
+  state.reviewRoundCursor = Math.min((state.reviewRoundCursor || 0) + 1, getOldKnowledgeReviewRoundCount());
+  currentPractice.roundStatus = "completed";
+  clearReviewResume();
+}
+
+function getOldKnowledgeReviewRoundCount() {
+  return data?.studyPackage?.totalLibraryTasks?.oldKnowledgeReview?.rounds?.length || 1;
+}
+
+function buildRoundRecord(practice, status, endedAt = new Date().toISOString()) {
+  const answeredCount = practice.results?.length || 0;
+  return {
+    roundId: practice.roundId || `old-review-round-${practice.roundNo || 1}`,
+    roundNo: practice.roundNo || 1,
+    roundStartedAt: practice.roundStartedAt,
+    roundEndedAt: endedAt,
+    roundStatus: status,
+    activeTimeMs: practice.activeTimeMs || 0,
+    pauseCount: practice.pauseCount || 0,
+    pauseDurationMs: practice.pauseDurationMs || 0,
+    answeredCount,
+    remainingCount: Math.max(0, (practice.total || 0) - answeredCount),
+    resumeAvailable: status !== "completed",
+    lastSavedAt: new Date().toISOString(),
+    interruptedAt: practice.interruptedAt || null
+  };
+}
+
+function reviewRoundFinishedTemplate(score, sessionSummary) {
+  const roundCount = getOldKnowledgeReviewRoundCount();
+  const nextRoundNo = Math.min((state.reviewRoundCursor || 0) + 1, roundCount);
+  const firstRoundDone = (state.reviewRoundCursor || 0) >= roundCount;
+  return `
+    <section class="question-card">
+      <div>
+        <span class="badge ${score === 100 ? "" : "amber"}">第 ${currentPractice.roundNo || ""} 轮完成</span>
+        <h2 style="margin-top:12px">旧知复习本轮完成</h2>
+        <p class="question-zh">${sessionSummary.message}</p>
+        <div class="report-list" style="margin-top:16px;text-align:left">
+          ${reportItem("本轮结果", `${currentPractice.correct}/${currentPractice.total}，${score}%`, score === 100 ? "badge" : "badge amber")}
+          ${reportItem("下一轮", firstRoundDone ? "第一轮摸底已到末尾，后续进入加强" : `第 ${nextRoundNo} / ${roundCount} 轮`, "badge blue")}
+          ${reportItem("测试日志", state.testMode ? "当前会导出 test 测试日志" : "当前会导出正式日志", state.testMode ? "badge amber" : "badge")}
+        </div>
+        <div class="button-row" style="justify-content:center;margin-top:16px">
+          <button class="primary-button" data-action="continue-review-round">${firstRoundDone ? "进入第二轮加强" : "继续复习一轮"}</button>
+          <button class="secondary-button" data-action="enter-preview">进入五上预习</button>
+          <button class="secondary-button" data-action="submit-learning-log">生成学习日志</button>
+          <button class="ghost-button" data-route-link="home">回到今日</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function continueTodayFlowLabel(nextAfter) {
+  if (nextAfter === "weakness-only" || nextAfter === "weakness-then-fiveA-strength" || nextAfter === "weakness-then-fiveA-preview") {
+    return "继续小漏洞回收";
+  }
   if (nextAfter === "fiveA-strength") return "继续五上加强测试";
   if (nextAfter === "fiveA-preview-quiz") return "继续五上小测";
   return "继续五上预习";
 }
 
 function continueTodayFlow(nextAfter) {
+  if (nextAfter === "weakness-only") {
+    startPractice("mistakes");
+    return;
+  }
+  if (nextAfter === "weakness-then-fiveA-strength") {
+    startPractice("mistakes", { nextAfter: "fiveA-strength" });
+    return;
+  }
+  if (nextAfter === "weakness-then-fiveA-preview") {
+    startPractice("mistakes", { nextAfter: "fiveA-preview" });
+    return;
+  }
   if (nextAfter === "fiveA-strength") {
     startPractice("fiveA-strength");
     return;
@@ -2136,6 +2534,11 @@ function packageQuestionToPractice(question, badge, packageKind = "preview") {
     gateStatus: packageKind === "preview" ? state.previewItemStatus?.[itemId]?.gateStatus || {} : question.gateStatus || null,
     practiceFace: question.practiceFace || question.masteryFace || "",
     questionType: question.questionType,
+    testKey: question.testKey || "",
+    abilityFace: question.abilityFace || question.practiceFace || question.masteryFace || "",
+    requiredTestType: question.requiredTestType || "",
+    roundNo: question.roundNo || null,
+    roundId: question.roundId || "",
     attemptIndex: question.attemptIndex || 1,
     sourceMode: question.sourceMode,
     skill: mapQuestionSkill(question),
@@ -2791,6 +3194,8 @@ function addMistake(question, reason) {
     const now = new Date().toISOString();
     existing.times += 1;
     existing.reason = reason;
+    existing.helpUsed = Boolean(existing.helpUsed || question.helpUsed);
+    existing.wrongReason = question.wrongReason || reason;
     existing.status = "active";
     existing.priority = Math.min(5, (existing.priority || 1) + 1);
     existing.correctStreak = 0;
@@ -2803,7 +3208,7 @@ function addMistake(question, reason) {
       scopeId: currentPractice?.scope?.scopeId || question.scopeId || existing.scopeId || null,
       scopeType: currentPractice?.scope?.scopeType || question.scopeType || existing.scopeType || null,
       skill: question.skill,
-      questionType: question.type,
+      questionType: question.questionType || question.type,
       correct: false
     });
     existing.sourceMode = currentPractice?.mode || existing.sourceMode || "manual";
@@ -2827,8 +3232,10 @@ function addMistake(question, reason) {
       scopeType: currentPractice?.scope?.scopeType || question.scopeType || null,
       skill: question.skill,
       sourceMode: currentPractice?.mode || "manual",
-      questionType: question.type,
+      questionType: question.questionType || question.type,
       reason,
+      wrongReason: question.wrongReason || reason,
+      helpUsed: Boolean(question.helpUsed),
       times: 1,
       retestRecords: [],
       correctStreak: 0,
@@ -2853,7 +3260,7 @@ function handleWrongAnswer(question) {
     showToast("先记下来，后面换个方式再见它");
     return;
   }
-  addMistake(question, inferReason(question));
+  addMistake(question, question.wrongReason || inferReason(question));
   showToast("先记下来，后面换个方式再见它");
 }
 
@@ -3030,27 +3437,123 @@ function inferReason(question) {
   return "拼不出来";
 }
 
-function exportRecords() {
+function exportRecords(options = {}) {
   const exportedAt = new Date();
   const exportDate = formatLocalDate(exportedAt);
-  const previousExportedAt = state.lastLogExportAt || "";
-  const exportRecords = getRecordsSinceLastExport(previousExportedAt);
-  if (!exportRecords.length) {
+  const exportRecords = getTodayRecords(exportDate);
+  const roundRecords = getTodayRoundRecords(exportDate);
+  if (!exportRecords.length && !roundRecords.length) {
     showToast("暂无新学习记录可导出");
     return;
   }
-  const payload = buildFeishuLearningLog(exportedAt, exportDate, exportRecords, previousExportedAt);
+  const payload = buildLearningLogV2(exportedAt, exportDate, exportRecords, roundRecords);
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `xiaobao-english-log-${exportDate}-${formatLocalTimeCompact(exportedAt)}.json`;
+  link.download = `xiaobao-english-log-${state.testMode ? "test-" : ""}${exportDate}-${formatLocalTimeCompact(exportedAt)}.json`;
   link.click();
   URL.revokeObjectURL(url);
   state.lastLogExportAt = exportedAt.toISOString();
   saveState();
   showToast("学习日志已导出");
   if (state.activeRoute === "parent") renderParent();
+}
+
+function getTodayRecords(exportDate) {
+  return (state.records || []).filter((record) => isSameLocalDate(record.at || record.answeredAt, exportDate));
+}
+
+function getTodayRoundRecords(exportDate) {
+  return (state.roundRecords || []).filter((record) =>
+    isSameLocalDate(record.roundStartedAt || record.lastSavedAt || record.roundEndedAt, exportDate)
+  );
+}
+
+function buildLearningLogV2(exportedAt, exportDate, records, roundRecords) {
+  const reviewRecords = records.filter((record) => record.mode === "warmup");
+  const normalizedRoundRecords = roundRecords.map((record) => ({
+    roundId: record.roundId || "",
+    roundNo: record.roundNo || 0,
+    roundStartedAt: record.roundStartedAt || "",
+    roundEndedAt: record.roundEndedAt || "",
+    roundStatus: record.roundStatus || "completed",
+    activeTimeMs: record.activeTimeMs || 0,
+    pauseCount: record.pauseCount || 0,
+    pauseDurationMs: record.pauseDurationMs || 0,
+    answeredCount: record.answeredCount || 0,
+    remainingCount: record.remainingCount || 0,
+    resumeAvailable: Boolean(record.resumeAvailable),
+    lastSavedAt: record.lastSavedAt || "",
+    interruptedAt: record.interruptedAt || null
+  }));
+  return {
+    kind: "xiaobao-english-learning-log",
+    schemaVersion: "2.0.0",
+    fieldVersion: "learning-log-v2",
+    planId: getCurrentPlanId(exportDate),
+    sessionDate: exportDate,
+    studentId: state.studentName || "xiaobao",
+    studentName: state.studentName || "小宝",
+    exportKind: state.testMode ? "test" : "formal",
+    timeZone: "Asia/Shanghai",
+    exportedAt: toShanghaiIso(exportedAt),
+    totalReviewRounds: normalizedRoundRecords.length,
+    totalReviewQuestions: reviewRecords.length,
+    hasPreview5A: records.some((record) => String(record.mode || "").startsWith("fiveA") || String(record.mode || "").includes("preview")),
+    app: {
+      appVersion: APP_VERSION,
+      platform: "web/pwa/tablet",
+      testMode: Boolean(state.testMode)
+    },
+    learningPackage: {
+      packageId: data.id || getPackageVersion(data),
+      packageVersion: getPackageVersion(data),
+      contentHash: state.contentHash || data.contentHash || ""
+    },
+    roundRecords: normalizedRoundRecords,
+    records: records.map(recordToLearningLogV2),
+    mistakes: buildFeishuMistakes(
+      records[0]?.at || exportedAt,
+      records[records.length - 1]?.at || exportedAt
+    ),
+    updateLog: state.updateLog || []
+  };
+}
+
+function getCurrentPlanId(exportDate) {
+  return (
+    data.studyPackage?.current?.planId ||
+    data.generatedBy?.planId ||
+    data.studyPackage?.totalLibraryTasks?.oldKnowledgeReview?.coverageLedgerTemplate?.planId ||
+    `xiaobao-english-plan-${exportDate}`
+  );
+}
+
+function recordToLearningLogV2(record, index) {
+  const result = record.result || (record.correct === true ? "correct" : record.correct === false ? "wrong" : "skipped");
+  return {
+    recordId: record.id || `record-${index + 1}`,
+    questionId: record.questionId || "",
+    itemId: record.itemId || "",
+    testKey: record.testKey || "",
+    itemKind: record.itemKind || "",
+    bookId: record.bookId || inferBookId(record),
+    scopeId: record.scopeId || "",
+    unitId: record.unitId || inferUnitId(record.itemId),
+    questionType: record.questionType || mapQuestionType(record),
+    abilityFace: record.abilityFace || record.practiceFace || mapSkill(record.skill),
+    result,
+    correct: record.correct === true,
+    timeSpentMs: record.timeSpentMs || Math.round((record.durationSeconds || 0) * 1000),
+    answeredAt: toShanghaiIso(new Date(record.answeredAt || record.at || Date.now())),
+    wrongReason: record.wrongReason || (result === "wrong" ? mapWrongReason(inferRecordWrongReason(record)) : ""),
+    roundId: record.roundId || "",
+    roundNo: record.roundNo || null,
+    helpUsed: Boolean(record.helpUsed),
+    enteredWeaknessPool: Boolean(record.enteredWeaknessPool),
+    exportKind: record.exportKind || (state.testMode ? "test" : "formal")
+  };
 }
 
 function buildFeishuLearningLog(exportedAt, exportDate, records, previousExportedAt) {
@@ -3411,7 +3914,7 @@ async function speakText(text, options = {}) {
   utterance.lang = voice?.lang || "en-GB";
   utterance.voice = voice || null;
   utterance.rate = options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE;
-  utterance.pitch = options.pitch ?? 1.08;
+  utterance.pitch = options.pitch ?? 1.18;
   utterance.volume = options.volume ?? 0.96;
   return new Promise((resolve) => {
     let settled = false;
@@ -3811,6 +4314,12 @@ function loadState() {
       lastCompletedTaskId: stored?.lastCompletedTaskId || "",
       activeLearningPackageId: stored?.activeLearningPackageId || "",
       activeLearningPackageVersion: stored?.activeLearningPackageVersion || "",
+      testMode: stored?.testMode !== false,
+      testModeResetVersion: stored?.testModeResetVersion || "",
+      roundRecords: stored?.roundRecords || [],
+      currentReviewRound: stored?.currentReviewRound || null,
+      reviewRoundCursor: stored?.reviewRoundCursor || 0,
+      reviewResume: stored?.reviewResume || null,
       previewItemStatus: stored?.previewItemStatus || {},
       lightWeakFaces: stored?.lightWeakFaces || {},
       learnedItems: stored?.learnedItems || {},

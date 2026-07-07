@@ -1,31 +1,31 @@
 {
   "kind": "latest-total-review-package",
-  "generatedAt": "2026-07-06T15:07:46.536Z",
-  "packageFile": "data/learning-packages/xiaobao-english-total-review-pack-2026-07-06-2307.json",
-  "version": "total-review-2026-07-06-2307",
+  "generatedAt": "2026-07-07T16:47:52.032Z",
+  "packageFile": "data/learning-packages/xiaobao-english-total-review-pack-2026-07-08-0047.json",
+  "version": "total-review-2026-07-08-0047",
   "summary": {
-    "items": 2780,
-    "questions": 23202,
+    "items": 2772,
+    "questions": 17675,
     "books": {
-      "3A": 463,
+      "3A": 455,
       "3B": 570,
       "4A": 798,
       "4B": 949
     },
     "tracks": {
-      "review": 2780
+      "review": 2772
     },
     "itemKinds": {
       "word": 638,
       "sentence": 1857,
-      "phrase": 256,
+      "phrase": 248,
       "proper-noun": 29
     },
     "questionCategories": {
       "word": 638,
       "text-dialogue": 1261,
       "sentence": 596,
-      "phrase": 256,
+      "phrase": 248,
       "proper-noun": 29
     },
     "questionTypes": {
@@ -37,50 +37,47 @@
       "context_choose_word": 638,
       "phonics_shape_confusion_word": 638,
       "semantic_confusion_word": 638,
-      "listen_sentence_meaning": 723,
-      "sentence_en_to_zh": 723,
-      "sentence_fill_blank": 1446,
-      "reorder_words": 723,
-      "zh_key_expression": 723,
-      "context_choose_sentence": 723,
-      "grammar_punctuation_confusion": 723,
-      "listen_choose_phrase": 256,
-      "zh_to_phrase": 256,
-      "phrase_fill_blank": 512,
-      "phrase_in_sentence": 256,
-      "context_choose_phrase": 256,
-      "confusion_phrase": 256,
+      "text_dialogue_listen_read": 1261,
+      "text_dialogue_order": 1261,
+      "story_detail_choice": 1261,
+      "dialogue_fill_blank": 1261,
+      "role_scene_transfer": 1261,
+      "sentence_fill_blank": 1192,
+      "reorder_words": 596,
+      "zh_key_expression": 596,
+      "context_choose_sentence": 596,
+      "grammar_punctuation_confusion": 596,
+      "phrase_fill_blank": 496,
+      "phrase_in_sentence": 248,
+      "context_choose_phrase": 248,
+      "confusion_phrase": 248,
       "listen_choose_proper_noun": 29,
       "proper_noun_en_to_zh": 29,
       "proper_noun_zh_to_en": 29,
       "proper_noun_spell": 29,
       "context_choose_proper_noun": 29,
-      "confusion_proper_noun": 29,
-      "text_dialogue_listen_read": 1134,
-      "text_dialogue_order": 1134,
-      "story_true_false": 2268,
-      "story_detail_choice": 1134,
-      "dialogue_fill_blank": 2268,
-      "role_scene_transfer": 1134
+      "confusion_proper_noun": 29
     },
     "difficulties": {
-      "L1": 6227,
-      "L2": 5985,
-      "L3": 7572,
-      "L4": 3418
+      "L1": 4523,
+      "L2": 5461,
+      "L3": 4281,
+      "L4": 3410
     },
     "generationLayers": {
-      "script_template": 16242,
-      "ai_manual_refine": 2320,
-      "rule_enhanced": 4640
+      "script_template": 12372,
+      "ai_manual_refine": 1768,
+      "rule_enhanced": 3535
     },
-    "basicQuestions": 6227,
-    "strengthQuestions": 13557,
-    "confusionQuestions": 3418
+    "basicQuestions": 4523,
+    "strengthQuestions": 9742,
+    "confusionQuestions": 3410
   },
   "rules": {
-    "firstRoundDays": 50,
-    "dailyTotalQuestions": 58,
+    "firstRoundMode": "coverage-ledger-by-testKey",
+    "firstRoundEstimatedRounds": 58,
+    "roundQuestionCount": 60,
+    "perRoundTotalQuestions": 60,
     "generationLayerTargets": {
       "script_template": "70%",
       "rule_enhanced": "20%",
