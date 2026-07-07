@@ -8,7 +8,9 @@ const TOTAL_STRENGTH_MANIFEST_URL = new URL("data/learning-packages/latest-total
 const STORAGE_KEY = "smart-study-state-v1";
 const SPEECH_PROFILE_VERSION = "female-en-gb-slow-v1";
 const DEFAULT_SPEECH_RATE = 0.54;
-const SLOW_SPEECH_RATE = 0.42;
+const SLOW_SPEECH_FACTOR = 0.8;
+const SLOW_SPEECH_MIN_RATE = 0.36;
+const SLOW_SPEECH_MAX_RATE = 0.62;
 const FEMALE_BRITISH_VOICES = /serena|susan|martha|kate|shelley|stephanie|sarah|victoria|emma|amy|ava|samantha|karen|moira|zira|aria|jenny|sonia|libby|maisie|female/i;
 const MALE_VOICES = /daniel|arthur|oliver|george|tom|male/i;
 
@@ -1460,9 +1462,9 @@ function renderParent() {
         <div class="setting-stack">
           <label class="setting-line">
             <span><strong>语速</strong><br><span class="muted">按老师音频：慢速、清楚、留停顿</span></span>
-            <strong id="rateLabel">${state.settings.speechRate.toFixed(2)}x</strong>
+            <strong id="rateLabel">${getNormalSpeechRate().toFixed(2)}x</strong>
           </label>
-          <input id="speechRate" type="range" min="0.46" max="0.78" step="0.01" value="${state.settings.speechRate}" />
+          <input id="speechRate" type="range" min="0.46" max="0.78" step="0.01" value="${getNormalSpeechRate()}" />
           <label class="setting-line">
             <span><strong>语音</strong><br><span class="muted">优先选择英国英语，平板可在这里切换</span></span>
           </label>
@@ -1494,7 +1496,7 @@ function renderParent() {
     saveState();
   });
   appViews.parent.querySelector("#speechRate").addEventListener("input", (event) => {
-    state.settings.speechRate = Number(event.target.value);
+    state.settings.speechRate = getNormalSpeechRate(Number(event.target.value));
     appViews.parent.querySelector("#rateLabel").textContent = `${state.settings.speechRate.toFixed(2)}x`;
     saveState();
   });
@@ -1504,7 +1506,7 @@ function renderParent() {
     showToast("英音语音已更新");
   });
   appViews.parent.querySelector("[data-action='test-voice']").addEventListener("click", () => {
-    speakLikeTeacher("Good habits are important.");
+    speakLikeTeacher("Good habits are important.", { rate: getNormalSpeechRate() });
   });
 }
 
@@ -1921,10 +1923,12 @@ function renderPractice() {
   `;
 
   appViews.practice.querySelector("[data-action='play-question']").addEventListener("click", async (event) => {
-    await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(q.audioText));
+    await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(q.audioText, { rate: getNormalSpeechRate() }));
   });
   appViews.practice.querySelector("[data-action='play-slow']").addEventListener("click", async (event) => {
-    await withPlaybackButton(event.currentTarget, () => speakLikeTeacher(q.audioText, { rate: SLOW_SPEECH_RATE }));
+    await withPlaybackButton(event.currentTarget, () =>
+      speakLikeTeacher(q.audioText, { rate: getSlowSpeechRate(), playingMessage: "正在慢速播放标准音" })
+    );
   });
   appViews.practice.querySelector("[data-action='help-question']").addEventListener("click", handleHelpRequest);
   const pauseButton = appViews.practice.querySelector("[data-action='pause-practice']");
@@ -3885,6 +3889,17 @@ function speak(text, options = {}) {
   speakLikeTeacher(text, { repeat: 1, ...options });
 }
 
+function getNormalSpeechRate(value = state.settings.speechRate) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_SPEECH_RATE;
+  return Math.min(0.78, Math.max(0.46, numeric));
+}
+
+function getSlowSpeechRate(value = getNormalSpeechRate()) {
+  const baseRate = getNormalSpeechRate(value);
+  return Math.min(SLOW_SPEECH_MAX_RATE, Math.max(SLOW_SPEECH_MIN_RATE, baseRate * SLOW_SPEECH_FACTOR));
+}
+
 async function ensureSpeechReady() {
   if (!("speechSynthesis" in window)) {
     showToast("当前浏览器没有系统朗读");
@@ -3913,7 +3928,7 @@ async function speakText(text, options = {}) {
   const voice = pickEnglishVoice();
   utterance.lang = voice?.lang || "en-GB";
   utterance.voice = voice || null;
-  utterance.rate = options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE;
+  utterance.rate = getNormalSpeechRate(options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE);
   utterance.pitch = options.pitch ?? 1.18;
   utterance.volume = options.volume ?? 0.96;
   return new Promise((resolve) => {
@@ -3952,7 +3967,7 @@ function sleep(ms) {
 async function speakLikeTeacher(text, options = {}) {
   stopAudioPlayback();
   const sequenceId = playbackSequenceId;
-  const rate = options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE;
+  const rate = getNormalSpeechRate(options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE);
   const repeat = options.repeat ?? 1;
   if (!options.silentToast) showToast("正在准备播放...");
   const parts = splitSpeechText(text);
@@ -3960,7 +3975,7 @@ async function speakLikeTeacher(text, options = {}) {
     for (let index = 0; index < parts.length; index += 1) {
       if (sequenceId !== playbackSequenceId) return;
       await speakText(parts[index], {
-        rate: round === 0 ? rate : Math.max(SLOW_SPEECH_RATE, rate - 0.03),
+        rate: round === 0 ? rate : getSlowSpeechRate(rate),
         sequenceId,
         continueQueue: round > 0 || index > 0
       });
