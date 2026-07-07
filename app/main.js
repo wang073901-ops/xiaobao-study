@@ -1255,14 +1255,14 @@ function startTodayLearning() {
       startPractice("warmup");
       return;
     }
-    startPractice("fiveA-strength");
+    startPractice("warmup", { nextAfter: "fiveA-strength" });
     return;
   }
   if (getCurrentPreviewChunk()) {
-    startFiveAPreviewLesson();
+    startPractice("warmup", { nextAfter: "fiveA-preview" });
     return;
   }
-  startPractice("daily");
+  startPractice("warmup");
 }
 
 function startFiveAPreviewLesson() {
@@ -1560,7 +1560,7 @@ async function playLessonStep(step) {
   await speakLessonList(step.items.map((item) => item.en));
 }
 
-function startPractice(mode) {
+function startPractice(mode, options = {}) {
   if (!isMaterialVerified()) {
     showToast("资料还在校对中，暂不进入练习");
     navigate("english");
@@ -1579,6 +1579,7 @@ function startPractice(mode) {
   }
   currentPractice = {
     mode,
+    nextAfter: options.nextAfter || "",
     scope: isScopedPracticeMode(mode) && state.selectedScope ? { ...state.selectedScope } : null,
     index: 0,
     correct: 0,
@@ -1757,6 +1758,7 @@ function handleAnswer(answer, button) {
 function finishPractice() {
   const score = Math.round((currentPractice.correct / currentPractice.total) * 100);
   const sessionSummary = buildSessionSummary(currentPractice, score);
+  const nextAfter = currentPractice.nextAfter || "";
   state.completed += 1;
   state.streak = Math.max(1, state.streak + 1);
   state.sessionSummaries.push(sessionSummary);
@@ -1776,6 +1778,11 @@ function finishPractice() {
           ${reportItem("掌握进度", `${sessionSummary.masteredCount} 个核心点已达标`, sessionSummary.masteredCount ? "badge blue" : "badge")}
         </div>
         <div class="button-row" style="justify-content:center;margin-top:16px">
+          ${
+            nextAfter
+              ? `<button class="primary-button" data-action="continue-today-flow">${nextAfter === "fiveA-strength" ? "继续五上加强测试" : "继续五上预习"}</button>`
+              : ""
+          }
           <button class="primary-button" data-route-link="home">回到今日</button>
           <button class="secondary-button" data-route-link="mistakes">看小漏洞</button>
         </div>
@@ -1783,6 +1790,22 @@ function finishPractice() {
     </section>
   `;
   bindRouteLinks(appViews.practice);
+  const continueButton = appViews.practice.querySelector("[data-action='continue-today-flow']");
+  if (continueButton) {
+    continueButton.addEventListener("click", () => continueTodayFlow(nextAfter));
+  }
+}
+
+function continueTodayFlow(nextAfter) {
+  if (nextAfter === "fiveA-strength") {
+    startPractice("fiveA-strength");
+    return;
+  }
+  if (nextAfter === "fiveA-preview") {
+    startFiveAPreviewLesson();
+    return;
+  }
+  navigate("home");
 }
 
 function buildQuestionPool(mode) {
@@ -3181,6 +3204,9 @@ function modeTitle(mode) {
     "start-sentence": "句型训练",
     "preview-practice": "预习轻练习",
     "preview-quiz": "小测收尾",
+    "fiveA-preview-light": "五上预习轻测",
+    "fiveA-preview-quiz": "五上预习小测",
+    "fiveA-strength": "五上加强测试",
     "review-total": "总复习",
     "self-review": "范围复习",
     warmup: "旧知复习"
