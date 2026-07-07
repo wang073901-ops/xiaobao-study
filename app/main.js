@@ -2,6 +2,9 @@ const APP_VERSION = "1.0.0";
 const APP_BASE_URL = new URL("../", import.meta.url);
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
 const LATEST_PACKAGE_URL = new URL("data/latest-learning-package.json", APP_BASE_URL).href;
+const TOTAL_REVIEW_MANIFEST_URL = new URL("data/learning-packages/latest-total-review-package.json", APP_BASE_URL).href;
+const TOTAL_PREVIEW_MANIFEST_URL = new URL("data/learning-packages/latest-total-preview-package.json", APP_BASE_URL).href;
+const TOTAL_STRENGTH_MANIFEST_URL = new URL("data/learning-packages/latest-total-5a-strength-package.json", APP_BASE_URL).href;
 const STORAGE_KEY = "smart-study-state-v1";
 const SPEECH_PROFILE_VERSION = "female-en-gb-slow-v1";
 const DEFAULT_SPEECH_RATE = 0.58;
@@ -39,6 +42,16 @@ const defaultState = {
   lessonProgress: {
     "5A-U1": { chunkIndex: 0 }
   },
+  fiveAStage: "preview",
+  nextTaskCursor: {
+    fiveAPreviewChunkIndex: 0,
+    fiveAStrengthIndex: 0
+  },
+  lastCompletedTaskId: "",
+  activeLearningPackageId: "",
+  activeLearningPackageVersion: "",
+  previewItemStatus: {},
+  lightWeakFaces: {},
   selectedReview: null,
   selectedScope: null,
   selectedSpeakingScopeId: "",
@@ -67,6 +80,11 @@ let deferredInstallPrompt = null;
 let availableVoices = [];
 let currentLesson = null;
 let speechRunId = 0;
+let totalPackages = {
+  review: null,
+  preview: null,
+  strength: null
+};
 
 const appViews = {
   home: document.querySelector("#view-home"),
@@ -87,6 +105,7 @@ init();
 
 async function init() {
   data = await loadLearningPackage();
+  await loadTotalLearningPackages();
   const firstVerifiedUnit = getFirstVerifiedUnit();
   currentSpeakingItem = firstVerifiedUnit?.words?.[0] || {
     id: "material-pending",
@@ -187,6 +206,36 @@ async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
+}
+
+async function loadTotalLearningPackages() {
+  const entries = [
+    ["review", TOTAL_REVIEW_MANIFEST_URL],
+    ["preview", TOTAL_PREVIEW_MANIFEST_URL],
+    ["strength", TOTAL_STRENGTH_MANIFEST_URL]
+  ];
+  const results = await Promise.allSettled(entries.map(([kind, manifestUrl]) => loadTotalLearningPackage(kind, manifestUrl)));
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      appendUpdateLog({
+        checkedAt: new Date().toISOString(),
+        onlineVersion: entries[index][0],
+        localVersion: getPackageVersion(data),
+        success: false,
+        reason: `总题库加载失败：${result.reason?.message || "网络不可用"}`
+      });
+    }
+  });
+}
+
+async function loadTotalLearningPackage(kind, manifestUrl) {
+  const manifest = await fetchJson(manifestUrl, { cache: "no-store" });
+  const packageUrl = new URL(manifest.packageFile || manifest.file, APP_BASE_URL).href;
+  const packageData = await fetchJson(packageUrl, { cache: "no-store" });
+  totalPackages[kind] = {
+    manifest,
+    package: packageData
+  };
 }
 
 function syncActivePackageMeta(packageData) {
@@ -567,6 +616,64 @@ function getQuestionItemsForScope(scopeId) {
   return reviewItems.filter((item) => isItemInScope(item, scope));
 }
 
+function getFiveAStage() {
+  if (state.fiveAStage === "reinforcement") return "reinforcement";
+  if (state.fiveAStage === "sentence_learning") return "sentence_learning";
+  return "preview";
+}
+
+function getTotalPackage(kind) {
+  return totalPackages[kind]?.package || null;
+}
+
+function getCurrentPreviewChunk() {
+  const previewPackage = getTotalPackage("preview");
+  const chunks = (previewPackage?.chunks || []).filter((chunk) => chunk.stage === "vocabulary");
+  const index = Math.min(state.nextTaskCursor?.fiveAPreviewChunkIndex || 0, Math.max(0, chunks.length - 1));
+  return chunks[index] || null;
+}
+
+function getPreviewItem(itemId) {
+  return (getTotalPackage("preview")?.items || []).find((item) => item.itemId === itemId) || null;
+}
+
+function getPreviewChunkItems(chunk = getCurrentPreviewChunk()) {
+  if (!chunk) return [];
+  return (chunk.itemIds || []).map(getPreviewItem).filter(Boolean);
+}
+
+function markPreviewChunkGate(chunk, gatePatch = {}) {
+  getPreviewChunkItems(chunk).forEach((item) => {
+    const existing = state.previewItemStatus[item.itemId] || {};
+    state.previewItemStatus[item.itemId] = {
+      itemId: item.itemId,
+      wordListItemId: item.itemId,
+      itemKind: item.itemKind,
+      wordListOrder: item.orderKey || item.itemId,
+      unitId: item.unitId,
+      gateStatus: {
+        heardStandardAudio: true,
+        meaningViewed: true,
+        readOrRepeatDone: true,
+        lightPracticeDone: false,
+        miniQuizDone: false,
+        ...(existing.gateStatus || {}),
+        ...gatePatch
+      },
+      previewStatus: "learning",
+      lightQuizStatus: existing.lightQuizStatus || "pending",
+      miniQuizStatus: existing.miniQuizStatus || "pending",
+      updatedAt: new Date().toISOString()
+    };
+  });
+}
+
+function isFiveAReinforcementAllowed() {
+  if (getFiveAStage() !== "reinforcement") return false;
+  const statuses = Object.values(state.previewItemStatus || {});
+  return statuses.length > 0 && statuses.every((item) => item.gateStatus?.miniQuizDone === true);
+}
+
 function getSpeakingScopes() {
   return [...getBookReviewScopes(), ...getFiveAUnitScopes()];
 }
@@ -620,13 +727,72 @@ function speakingScopeOptions(selectedScopeId) {
     .join("");
 }
 
+const oldKnowledgeReviewPlan = {
+  total: 58,
+  weakness: 6,
+  targets: {
+    word: 20,
+    phrase: 6,
+    sentence: 20,
+    textDialogue: 6
+  },
+  weaknessGapFillOrder: ["word", "sentence", "word", "phrase", "sentence", "textDialogue"]
+};
+
 function getWarmupQuestions() {
-  const mistakes = getActiveMistakes().slice(0, 2).map(mistakeToQuestion);
-  const learned = [...getReviewQuestionItems(), ...getLearnedQuestionItems()]
-    .sort((a, b) => getItemMasteryScore(a.id, a.itemKind) - getItemMasteryScore(b.id, b.itemKind))
-    .slice(0, 4)
-    .map((item, index) => questionForLearnedItem(item, { badge: index ? "旧知热身" : "小漏洞回收" }));
-  return uniqueQuestions([...mistakes, ...learned]).slice(0, 5);
+  const mistakes = getActiveMistakes().slice(0, oldKnowledgeReviewPlan.weakness).map(mistakeToQuestion);
+  const targets = { ...oldKnowledgeReviewPlan.targets };
+  const weaknessGap = Math.max(0, oldKnowledgeReviewPlan.weakness - mistakes.length);
+  oldKnowledgeReviewPlan.weaknessGapFillOrder.slice(0, weaknessGap).forEach((kind) => {
+    targets[kind] = (targets[kind] || 0) + 1;
+  });
+
+  const reviewItems = getReviewQuestionItems()
+    .sort((a, b) => getItemMasteryScore(a.id, a.itemKind) - getItemMasteryScore(b.id, b.itemKind));
+  const selectedItems = [];
+  const selectedIds = new Set();
+
+  Object.entries(targets).forEach(([kind, limit]) => {
+    pickReviewItems(reviewItems, kind, limit, selectedIds).forEach((item) => {
+      selectedIds.add(item.id);
+      selectedItems.push(item);
+    });
+  });
+
+  const plannedCount = oldKnowledgeReviewPlan.total - mistakes.length;
+  if (selectedItems.length < plannedCount) {
+    reviewItems
+      .filter((item) => !selectedIds.has(item.id))
+      .slice(0, plannedCount - selectedItems.length)
+      .forEach((item) => {
+        selectedIds.add(item.id);
+        selectedItems.push(item);
+      });
+  }
+
+  const reviewQuestions = selectedItems
+    .slice(0, plannedCount)
+    .map((item) => questionForLearnedItem(item, { badge: "旧知复习", scopeId: "review-mixed-3-4" }));
+  return uniqueQuestions([...mistakes, ...reviewQuestions]).slice(0, oldKnowledgeReviewPlan.total);
+}
+
+function pickReviewItems(items, kind, limit, selectedIds) {
+  return items
+    .filter((item) => !selectedIds.has(item.id))
+    .filter((item) => reviewItemCategory(item) === kind)
+    .slice(0, limit);
+}
+
+function reviewItemCategory(item) {
+  if (isTextDialogueReviewItem(item)) return "textDialogue";
+  if (item.itemKind === "word") return "word";
+  if (item.itemKind === "phrase") return "phrase";
+  return "sentence";
+}
+
+function isTextDialogueReviewItem(item) {
+  const marker = `${item.section || ""} ${item.sourceLayer || ""} ${item.type || ""} ${item.source || ""}`.toLowerCase();
+  return /story|cartoon|dialog|dialogue|rhyme|song/.test(marker);
 }
 
 function isMaterialVerified() {
@@ -661,34 +827,42 @@ function renderHome() {
   const weakCount = getActiveMistakes().length;
   const accuracy = calcAccuracy();
   const materialReady = isMaterialVerified();
+  const fiveAStage = getFiveAStage();
+  const hasStrength = fiveAStage === "reinforcement" && materialReady;
+  const previewChunk = getCurrentPreviewChunk();
+  const hasPreview = fiveAStage !== "reinforcement" && Boolean(previewChunk) && materialReady;
   const previewUnit = getNextPreviewUnit();
-  const hasPreview = Boolean(previewUnit) && materialReady;
-  const warmupQuestions = getWarmupQuestions();
-  const previewChunk = previewUnit ? getCurrentLearningChunk(previewUnit) : null;
   const mastery = previewUnit ? getUnitMastery(previewUnit) : getUnitMastery(getFirstVerifiedUnit());
-  const todayTasks = hasPreview
+  const todayTasks = hasStrength
     ? [
-        warmupQuestions.length ? taskItem(1, "旧知热身", "只测已学内容 + 小漏洞回收", "约 5-8 分钟") : "",
-        taskItem(warmupQuestions.length ? 2 : 1, "新课学习", `${previewChunk?.title || previewUnit.title} 先听读再理解`, "约 15-20 分钟"),
-        taskItem(warmupQuestions.length ? 3 : 2, "轻练习", "认词、听音、拼写、句型配对", "约 8-10 分钟"),
-        taskItem(warmupQuestions.length ? 4 : 3, "小测收尾", "只测今天已学内容，目标 100%", "约 5-7 分钟")
+        taskItem(1, "旧知复习", "三四年级总复习 + 小漏洞回收", "58 题"),
+        taskItem(2, "五上加强测试", "只测已完成 gate 的内容", "30 题"),
+        taskItem(3, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
+      ].join("")
+    : hasPreview
+    ? [
+        taskItem(1, "旧知复习", "三四年级总复习 + 小漏洞回收", "58 题"),
+        taskItem(2, "五上预习学习", `${previewChunk.title || "五上词表项预习"}：听懂读`, "10 项"),
+        taskItem(3, "轻测", "英中互认 / 听音选词 / 看中文补英文", "30 题"),
+        taskItem(4, "小测", "看中文默写完整英文", "10 题"),
+        taskItem(5, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
       ].join("")
     : [
-        taskItem(1, "已学滚动", "只从已学池抽题，错开覆盖", "约 6 分钟"),
-        taskItem(2, "小漏洞回收", weakCount ? `${weakCount} 个小点优先` : "薄弱点专项", "约 7 分钟"),
-        taskItem(3, "综合小测", "已学内容混合复测", "约 7 分钟")
+        taskItem(1, "旧知复习", "只从已学池抽题，错开覆盖", "58 题"),
+        taskItem(2, "小漏洞回收", weakCount ? `${weakCount} 个小点优先` : "薄弱点专项", "滚动复现"),
+        taskItem(3, "提交学习日志", "生成 JSON，手动发到飞书群", "完成后")
       ].join("");
   appViews.home.innerHTML = `
     <div class="hero-band">
       <section class="today-plan">
         <p class="eyebrow">今日学习</p>
-        <h2>${hasPreview ? "先学一点，再练稳，最后小测收尾" : "今天做一轮已学总复习"}</h2>
+        <h2>${hasStrength ? "先复习，再做五上加强测试" : hasPreview ? "先旧知复习，再学五上新内容" : "今天做一轮已学总复习"}</h2>
         <p class="hero-copy">目标是每个核心点最终 100% 掌握。不会的先记下来，后面会换一种方式再见它。</p>
         <div class="task-list">
           ${todayTasks}
         </div>
         <div class="button-row">
-          <button class="primary-button" data-action="start-learning" ${materialReady ? "" : "disabled"}>${materialReady ? (hasPreview ? "开始学习" : "开始总练习") : "资料校对中"}</button>
+          <button class="primary-button" data-action="start-learning" ${materialReady ? "" : "disabled"}>${materialReady ? "开始学习" : "资料校对中"}</button>
           <button class="secondary-button" data-action="start-daily" ${materialReady ? "" : "disabled"}>每日总练习</button>
           <button class="secondary-button" data-route-link="speaking">口语跟读</button>
         </div>
@@ -736,8 +910,7 @@ function renderHome() {
   `;
 
   appViews.home.querySelector("[data-action='start-learning']").addEventListener("click", () => {
-    if (hasPreview) startLesson(previewUnit.id);
-    else startPractice("daily");
+    startTodayLearning();
   });
   appViews.home.querySelector("[data-action='start-daily']").addEventListener("click", () => {
     startPractice("daily");
@@ -1075,6 +1248,43 @@ function renderParent() {
   });
 }
 
+function startTodayLearning() {
+  if (getFiveAStage() === "reinforcement") {
+    if (!isFiveAReinforcementAllowed()) {
+      showToast("五上加强要等 gate 完成后开放");
+      startPractice("warmup");
+      return;
+    }
+    startPractice("fiveA-strength");
+    return;
+  }
+  if (getCurrentPreviewChunk()) {
+    startFiveAPreviewLesson();
+    return;
+  }
+  startPractice("daily");
+}
+
+function startFiveAPreviewLesson() {
+  const chunk = getCurrentPreviewChunk();
+  if (!chunk) {
+    showToast("五上预习题库还在准备中");
+    navigate("home");
+    return;
+  }
+  state.activeLearningPackageId = getTotalPackage("preview")?.id || "xiaobao-english-total-preview-package";
+  state.activeLearningPackageVersion = getTotalPackage("preview")?.version || "";
+  currentLesson = {
+    lessonType: "fiveA-preview",
+    unitId: chunk.unitId,
+    chunkId: chunk.chunkId,
+    step: 0
+  };
+  saveState();
+  navigate("lesson");
+  renderLesson();
+}
+
 function startLesson(unitId) {
   if (!isUnitVerified(unitId)) {
     showToast("这个单元还没核验完成，暂不进入学习");
@@ -1109,13 +1319,16 @@ function startScopedPractice(scopeId) {
 }
 
 function renderLesson() {
-  const unit = data.units.find((item) => item.id === currentLesson?.unitId) || data.units[0];
-  const chunk = getLearningChunks(unit).find((item) => item.id === currentLesson?.chunkId) || getCurrentLearningChunk(unit);
-  const steps = buildLessonSteps(unit, chunk);
+  const isTotalPreviewLesson = currentLesson?.lessonType === "fiveA-preview";
+  const unit = isTotalPreviewLesson ? null : data.units.find((item) => item.id === currentLesson?.unitId) || data.units[0];
+  const chunk = isTotalPreviewLesson
+    ? getCurrentPreviewChunk()
+    : getLearningChunks(unit).find((item) => item.id === currentLesson?.chunkId) || getCurrentLearningChunk(unit);
+  const steps = isTotalPreviewLesson ? buildFiveAPreviewLessonSteps(chunk) : buildLessonSteps(unit, chunk);
   const step = steps[currentLesson.step];
   const progress = Math.round(((currentLesson.step + 1) / steps.length) * 100);
 
-  pageTitle.textContent = `${unit.title} · ${chunk.title}`;
+  pageTitle.textContent = isTotalPreviewLesson ? `五上预习 · ${chunk.title}` : `${unit.title} · ${chunk.title}`;
   eyebrow.textContent = "先学后练";
 
   appViews.lesson.innerHTML = `
@@ -1135,7 +1348,7 @@ function renderLesson() {
         <div class="button-row">
           <button class="secondary-button" data-lesson-action="prev" ${currentLesson.step === 0 ? "disabled" : ""}>上一步</button>
           <button class="secondary-button" data-lesson-action="play">播放领读</button>
-          <button class="primary-button" data-lesson-action="next">${currentLesson.step === steps.length - 1 ? "开始小测" : "下一步"}</button>
+          <button class="primary-button" data-lesson-action="next">${lessonNextLabel(step, currentLesson.step, steps.length)}</button>
         </div>
       </section>
     </div>
@@ -1146,6 +1359,19 @@ function renderLesson() {
     renderLesson();
   });
   appViews.lesson.querySelector("[data-lesson-action='next']").addEventListener("click", () => {
+    if (isTotalPreviewLesson) {
+      if (step.kind === "listen-read") {
+        markPreviewChunkGate(chunk);
+      }
+      if (step.kind === "light") {
+        startPractice("fiveA-preview-light");
+        return;
+      }
+      if (step.kind === "quiz") {
+        startPractice("fiveA-preview-quiz");
+        return;
+      }
+    }
     if (currentLesson.step >= steps.length - 1) {
       markChunkLearned(unit, chunk);
       state.unitProgress[unit.id] = "practicing";
@@ -1171,6 +1397,42 @@ function renderLesson() {
   });
 }
 
+function lessonNextLabel(step, index, total) {
+  if (step.kind === "light") return "开始轻测";
+  if (step.kind === "quiz") return "开始小测";
+  return index === total - 1 ? "开始小测" : "下一步";
+}
+
+function buildFiveAPreviewLessonSteps(chunk) {
+  const items = getPreviewChunkItems(chunk);
+  return [
+    {
+      kind: "listen-read",
+      badge: "听懂读",
+      title: "先听标准音，看懂意思，再跟读认读",
+      goal: "会听会读",
+      body: `${chunk.focus || "按 Word lists 顺序学习 10 个词表项。"} 这里不计分，可以多听几遍、多停留一会儿再进入轻测。`,
+      items: items.map((item) => ({ id: item.itemId, en: item.en, zh: item.zh, itemKind: item.itemKind }))
+    },
+    {
+      kind: "light",
+      badge: "轻测",
+      title: "轻测 30 题",
+      goal: "发现薄弱面",
+      body: "每个词表项 3 题：英中互认、听音选词、看中文补英文。错了先记录薄弱面，不在这里硬卡。",
+      practiceMode: "fiveA-preview-light"
+    },
+    {
+      kind: "quiz",
+      badge: "小测",
+      title: "小测 10 题",
+      goal: "初步过关",
+      body: "每个词表项 1 题：看中文默写完整英文。小测错词会进入小漏洞池，并占用后续预习回收名额。",
+      practiceMode: "fiveA-preview-quiz"
+    }
+  ];
+}
+
 function buildLessonSteps(unit, chunk) {
   const previewLesson = unit.previewLesson || {
     theme: unit.title,
@@ -1185,10 +1447,10 @@ function buildLessonSteps(unit, chunk) {
       ? [
           {
             kind: "warmup",
-            badge: "旧知热身",
-            title: "先把已经学过的唤醒一下",
-            goal: "只测已学",
-            body: "这里不会出现还没学过的五上内容。答错会记入小漏洞，后面换方式再练。",
+            badge: "旧知复习",
+            title: "先完成今天的旧知复习",
+            goal: "三四年级总复习",
+            body: "这里使用三四年级总复习内容和到期小漏洞，不会混入还没完成 gate 的五上内容。答错会记入小漏洞，后面换方式再练。",
             items: [],
             questionCount: warmupQuestions.length
           }
@@ -1254,15 +1516,15 @@ function buildLessonSteps(unit, chunk) {
 }
 
 function lessonStepTemplate(step) {
-  if (["warmup", "practice", "quiz"].includes(step.kind)) {
+  if (["warmup", "practice", "light", "quiz"].includes(step.kind)) {
     return `
       <div>
         <span class="badge ${step.kind === "quiz" ? "amber" : "blue"}">${step.badge}</span>
         <h2 style="margin-top:12px">${step.title}</h2>
         <p class="question-zh">${step.body}</p>
         <div class="button-row" style="justify-content:center;margin-top:18px">
-          <button class="primary-button" data-start="${step.kind === "warmup" ? "warmup" : step.kind === "quiz" ? "preview-quiz" : "preview-practice"}">
-            ${step.kind === "warmup" ? `开始热身 ${step.questionCount || ""}` : step.kind === "quiz" ? "开始小测" : "开始轻练习"}
+          <button class="primary-button" data-start="${step.practiceMode || (step.kind === "warmup" ? "warmup" : step.kind === "quiz" ? "preview-quiz" : "preview-practice")}">
+            ${step.kind === "warmup" ? `开始复习 ${step.questionCount || ""}` : step.kind === "quiz" ? "开始小测" : "开始轻测"}
           </button>
         </div>
       </div>
@@ -1535,6 +1797,9 @@ function buildQuestionPool(mode) {
 
   if (mode === "warmup") return getWarmupQuestions();
   if (mode === "mistakes") return mistakeQuestions;
+  if (mode === "fiveA-preview-light") return buildFiveAPreviewQuestions("light_practice");
+  if (mode === "fiveA-preview-quiz") return buildFiveAPreviewQuestions("gate_quiz");
+  if (mode === "fiveA-strength") return buildFiveAStrengthQuestions();
   if (mode === "preview-practice") {
     return buildChunkPracticeQuestions(unit, chunk, "轻练习").slice(0, 5);
   }
@@ -1557,6 +1822,82 @@ function buildQuestionPool(mode) {
   if (mode === "weekly") return uniqueQuestions([...mistakeQuestions, ...buildQuestionsFromLearned(learnedItems, 8)]).slice(0, 10);
   if (mode === "unit") return buildQuestionsFromLearned(learnedForUnit, 12);
   return buildDailyQuestions(learnedItems, mistakeQuestions);
+}
+
+function buildFiveAPreviewQuestions(gatePhase) {
+  const previewPackage = getTotalPackage("preview");
+  const chunk = getCurrentPreviewChunk();
+  if (!previewPackage || !chunk) return [];
+  const itemIds = new Set(chunk.itemIds || []);
+  const preferredOrder =
+    gatePhase === "light_practice"
+      ? ["preview_vocab_en_zh_match", "preview_vocab_listen_choose", "preview_vocab_zh_fill_blank"]
+      : ["preview_vocab_zh_full_spell"];
+  const questions = preferredOrder.flatMap((questionType) =>
+    (previewPackage.questions || [])
+      .filter((question) => question.gatePhase === gatePhase)
+      .filter((question) => question.questionType === questionType)
+      .filter((question) => itemIds.has(question.mainItemId))
+      .sort((a, b) => String(a.sortKey || a.questionId).localeCompare(String(b.sortKey || b.questionId), "en", { numeric: true }))
+  );
+  const limit = gatePhase === "light_practice" ? 30 : 10;
+  return questions.slice(0, limit).map((question) => packageQuestionToPractice(question, gatePhase === "light_practice" ? "轻测" : "小测"));
+}
+
+function buildFiveAStrengthQuestions() {
+  if (!isFiveAReinforcementAllowed()) return [];
+  const strengthPackage = getTotalPackage("strength");
+  const allowedIds = new Set(
+    Object.values(state.previewItemStatus || [])
+      .filter((item) => item.gateStatus?.miniQuizDone === true)
+      .map((item) => item.itemId)
+  );
+  return (strengthPackage?.questions || [])
+    .filter((question) => question.requiresGateComplete !== false)
+    .filter((question) => allowedIds.has(question.mainItemId))
+    .sort((a, b) => String(a.sortKey || a.questionId).localeCompare(String(b.sortKey || b.questionId), "en", { numeric: true }))
+    .slice(state.nextTaskCursor?.fiveAStrengthIndex || 0, (state.nextTaskCursor?.fiveAStrengthIndex || 0) + 30)
+    .map((question) => packageQuestionToPractice(question, "五上加强"));
+}
+
+function packageQuestionToPractice(question, badge) {
+  const item = getPreviewItem(question.mainItemId) || {};
+  const hasChoices = Array.isArray(question.choices) && question.choices.length > 0;
+  const isListening = /listen|听音|听句/.test(`${question.questionType} ${question.prompt}`);
+  const isSpelling = !hasChoices || /spell|fill|默写|补英文/.test(`${question.questionType} ${question.prompt}`);
+  return {
+    type: hasChoices ? (isListening ? "listen-choice" : "meaning-choice") : "spell",
+    title: question.prompt || question.questionType,
+    badge,
+    level: question.difficulty || question.masteryFace || "练习",
+    prompt: isListening && hasChoices ? "听录音，选择正确答案" : question.prompt || item.zh || "",
+    answer: question.answer,
+    audioText: question.audioText || item.en || question.answer,
+    choices: hasChoices ? shuffle(uniqueValues(question.choices)) : [],
+    itemId: question.mainItemId,
+    questionId: question.questionId,
+    itemKind: question.itemKind || item.itemKind || "word",
+    bookId: question.bookId || item.bookId,
+    unitId: question.unitId || item.unitId,
+    scopeId: question.scopeId || item.scopeId,
+    scopeType: item.scopeType || "fiveAUnit",
+    track: item.track || "preview",
+    gateStatus: state.previewItemStatus?.[question.mainItemId]?.gateStatus || {},
+    practiceFace: question.practiceFace || question.masteryFace || "",
+    questionType: question.questionType,
+    attemptIndex: question.attemptIndex || 1,
+    sourceMode: question.sourceMode,
+    skill: mapQuestionSkill(question),
+    autoPlay: isListening || /listen/.test(question.questionType)
+  };
+}
+
+function mapQuestionSkill(question) {
+  const text = `${question.masteryFace || ""} ${question.practiceFace || ""} ${question.questionType || ""}`.toLowerCase();
+  if (/spell|fill|structure|reorder/.test(text)) return "spelling";
+  if (/listen/.test(text)) return "listen";
+  if (/recognition|meaning|en_zh|choose/.test(text)) return "recognition";
+  return "use";
 }
 
 function isScopedPracticeMode(mode) {
@@ -2160,7 +2501,7 @@ function buildDailyCompletionReport(date) {
   const wrongCount = answerRecords.filter((record) => !record.correct).length;
   const errorRate = answerRecords.length ? Math.round((wrongCount / answerRecords.length) * 100) : 0;
   const steps = [
-    { label: "旧知热身", done: modes.has("warmup") },
+    { label: "旧知复习", done: modes.has("warmup") },
     { label: "五上新学", done: learnedCount > 0 || modes.has("lesson") || modes.has("preview-practice") || modes.has("preview-quiz") },
     { label: "轻练习", done: modes.has("preview-practice") },
     { label: "小测收尾", done: modes.has("preview-quiz") || modes.has("daily") },
@@ -2842,7 +3183,7 @@ function modeTitle(mode) {
     "preview-quiz": "小测收尾",
     "review-total": "总复习",
     "self-review": "范围复习",
-    warmup: "旧知热身"
+    warmup: "旧知复习"
   }[mode] || "练习";
 }
 
