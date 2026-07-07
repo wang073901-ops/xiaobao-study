@@ -651,6 +651,24 @@ select {
   gap: 10px;
 }
 
+.mistake-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.mistake-category-card {
+  display: grid;
+  gap: 12px;
+  align-content: space-between;
+  min-height: 172px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+}
+
 .mistake-item,
 .report-item {
   display: grid;
@@ -661,6 +679,66 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: #fff;
+}
+
+.letter-answer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  margin: 14px auto;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: pre-wrap;
+}
+
+.letter-answer:empty::before {
+  content: "点下面字母作答";
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.letter-answer.locked {
+  background: var(--panel-soft);
+}
+
+.letter-keyboard {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(42px, 1fr));
+  gap: 8px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.letter-key {
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.letter-key.utility {
+  grid-column: span 2;
+  text-transform: none;
+}
+
+.letter-key.confirm {
+  grid-column: span 3;
+  background: var(--green-dark);
+  color: #fff;
+  text-transform: none;
 }
 
 .recording-panel {
@@ -859,6 +937,7 @@ input[type="range"] {
   .grid.three,
   .flow-strip,
   .mini-flow,
+  .mistake-category-grid,
   .score-grid,
   .standards-grid,
   .daily-summary-grid,
@@ -868,6 +947,15 @@ input[type="range"] {
 
   .choice-grid {
     grid-template-columns: 1fr;
+  }
+
+  .letter-keyboard {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .letter-key.utility,
+  .letter-key.confirm {
+    grid-column: span 1;
   }
 
   .question-word {

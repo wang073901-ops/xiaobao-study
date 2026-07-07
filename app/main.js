@@ -53,6 +53,7 @@ const defaultState = {
   activeLearningPackageVersion: "",
   previewItemStatus: {},
   lightWeakFaces: {},
+  selectedMistakeCategory: "all",
   selectedReview: null,
   selectedScope: null,
   selectedSpeakingScopeId: "",
@@ -81,6 +82,7 @@ let deferredInstallPrompt = null;
 let availableVoices = [];
 let currentLesson = null;
 let speechRunId = 0;
+let playbackSequenceId = 0;
 let totalPackages = {
   review: null,
   preview: null,
@@ -254,7 +256,7 @@ function setupEvents() {
   });
 
   document.querySelector("#soundButton").addEventListener("click", () => {
-    speakLikeTeacher("Good habits are important.");
+    speakLikeTeacher("Good habits are important.", { repeat: 1 });
   });
 
   document.querySelector("#installButton").addEventListener("click", async () => {
@@ -811,6 +813,7 @@ function materialStatusText() {
 }
 
 function navigate(route) {
+  stopAudioPlayback();
   const target = routes[route] ? route : "home";
   state.activeRoute = target;
   saveState();
@@ -991,11 +994,15 @@ function renderEnglish() {
 function renderMistakes() {
   const items = state.mistakes;
   const activeItems = getActiveMistakes();
+  const categories = getMistakeCategories(activeItems);
   appViews.mistakes.innerHTML = `
     <div class="grid two">
       <section class="panel">
         <h2>小漏洞清单</h2>
         <p class="muted">这里不是惩罚区，只是把暂时没稳的内容收起来，后面换个方式再练。</p>
+        <div class="mistake-category-grid">
+          ${categories.map(mistakeCategoryCard).join("")}
+        </div>
         <div class="mistake-list">
           ${
             items.length
@@ -1014,7 +1021,18 @@ function renderMistakes() {
       </section>
     </div>
   `;
-  appViews.mistakes.querySelector("[data-action='review-mistakes']").addEventListener("click", () => startPractice("mistakes"));
+  appViews.mistakes.querySelector("[data-action='review-mistakes']").addEventListener("click", () => {
+    state.selectedMistakeCategory = "all";
+    saveState();
+    startPractice("mistakes");
+  });
+  appViews.mistakes.querySelectorAll("[data-mistake-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedMistakeCategory = button.dataset.mistakeCategory;
+      saveState();
+      startPractice("mistakes");
+    });
+  });
   appViews.mistakes.querySelector("[data-action='clear-mastered']").addEventListener("click", () => {
     state.mistakes = state.mistakes.filter((item) => item.status !== "mastered");
     saveState();
@@ -1391,7 +1409,7 @@ function renderLesson() {
   appViews.lesson.querySelectorAll("[data-read]").forEach((button) => {
     button.addEventListener("click", async (event) => {
       await withPlaybackLabel(event.currentTarget, event.currentTarget.querySelector("[data-playback-label]"), () =>
-        speakLikeTeacher(button.dataset.read)
+        speakLikeTeacher(button.dataset.read, { repeat: 2 })
       );
     });
   });
@@ -1598,6 +1616,7 @@ function startPractice(mode, options = {}) {
 }
 
 function renderPractice() {
+  stopAudioPlayback();
   const q = currentPractice.questions[currentPractice.index];
   currentPractice.answered = false;
   const progress = Math.round((currentPractice.index / currentPractice.total) * 100);
@@ -1614,8 +1633,8 @@ function renderPractice() {
       ${questionTemplate(q)}
       <section class="panel">
         <div class="button-row">
-          <button class="secondary-button" data-action="play-question">播放</button>
-          <button class="secondary-button" data-action="play-slow">慢速播放</button>
+          <button class="secondary-button" data-action="play-question">再听一遍</button>
+          <button class="secondary-button" data-action="play-slow">慢速再听</button>
           <button class="ghost-button" data-action="exit-practice">回到英语</button>
         </div>
       </section>
@@ -1632,19 +1651,12 @@ function renderPractice() {
   appViews.practice.querySelectorAll("[data-answer]").forEach((button) => {
     button.addEventListener("click", () => handleAnswer(button.dataset.answer, button));
   });
-  const input = appViews.practice.querySelector("#spellAnswer");
-  if (input) {
-    input.focus();
-    appViews.practice.querySelector("[data-action='submit-spell']").addEventListener("click", () => handleAnswer(input.value));
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") handleAnswer(input.value);
-    });
-  }
+  setupLetterKeyboard();
 }
 
 function questionTemplate(q) {
   if (q.type === "listen-choice") {
-    setTimeout(() => speakLikeTeacher(q.audioText), 250);
+    scheduleQuestionAudio(q);
     return `
       <section class="question-card">
         <div>
@@ -1660,17 +1672,15 @@ function questionTemplate(q) {
   }
 
   if (q.type === "spell") {
-    if (q.autoPlay) setTimeout(() => speakLikeTeacher(q.audioText), 250);
+    if (q.autoPlay) scheduleQuestionAudio(q);
     return `
       <section class="question-card">
         <div>
           <span class="badge blue">${q.level || "拼写"}</span>
           <h2 style="margin-top:12px">${q.title || "看中文写英文"}</h2>
           <p class="question-zh">${q.prompt}</p>
-          <input id="spellAnswer" class="text-input" autocomplete="off" autocapitalize="none" spellcheck="false" />
-          <div class="button-row" style="justify-content:center;margin-top:14px">
-            <button class="primary-button" data-action="submit-spell">提交</button>
-          </div>
+          <div id="spellAnswer" class="letter-answer" data-value="" aria-live="polite"></div>
+          ${letterKeyboardTemplate(allowSpaceForQuestion(q))}
           <div class="answer-feedback" id="answerFeedback" aria-live="polite"></div>
         </div>
       </section>
@@ -1692,8 +1702,61 @@ function questionTemplate(q) {
   `;
 }
 
+function letterKeyboardTemplate(allowSpace) {
+  const letters = "abcdefghijklmnopqrstuvwxyz".split("");
+  return `
+    <div class="letter-keyboard" aria-label="APP 内置字母键盘">
+      ${letters.map((letter) => `<button class="letter-key" data-key="${letter}" type="button">${letter}</button>`).join("")}
+      <button class="letter-key utility" data-key="backspace" type="button">删除</button>
+      <button class="letter-key utility" data-key="space" type="button" ${allowSpace ? "" : "disabled"}>空格</button>
+      <button class="letter-key confirm" data-key="confirm" type="button">确认</button>
+    </div>
+  `;
+}
+
+function setupLetterKeyboard() {
+  const answer = appViews.practice.querySelector("#spellAnswer");
+  if (!answer) return;
+  appViews.practice.querySelectorAll("[data-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!currentPractice || currentPractice.answered) return;
+      const key = button.dataset.key;
+      let value = answer.dataset.value || "";
+      if (key === "confirm") {
+        handleAnswer(value);
+        return;
+      }
+      if (key === "backspace") {
+        value = value.slice(0, -1);
+      } else if (key === "space") {
+        value = `${value} `;
+      } else {
+        value += key;
+      }
+      answer.dataset.value = value;
+      answer.textContent = value;
+    });
+  });
+}
+
+function allowSpaceForQuestion(question) {
+  const expected = String(question.answer || question.audioText || "");
+  return /\s|\.{3}|,|[!?]/.test(expected) || question.itemKind === "phrase" || question.itemKind === "sentence";
+}
+
+function scheduleQuestionAudio(question) {
+  const scheduledSequence = playbackSequenceId;
+  setTimeout(() => {
+    if (!currentPractice || currentPractice.answered) return;
+    if (playbackSequenceId !== scheduledSequence) return;
+    if (currentPractice.questions[currentPractice.index] !== question) return;
+    speakLikeTeacher(question.audioText, { repeat: 1, silentToast: true });
+  }, 250);
+}
+
 function handleAnswer(answer, button) {
   if (!currentPractice || currentPractice.answered) return;
+  stopAudioPlayback();
   currentPractice.answered = true;
   const q = currentPractice.questions[currentPractice.index];
   const normalized = normalize(answer);
@@ -1706,8 +1769,11 @@ function handleAnswer(answer, button) {
   });
   const spellInput = appViews.practice.querySelector("#spellAnswer");
   const spellSubmit = appViews.practice.querySelector("[data-action='submit-spell']");
-  if (spellInput) spellInput.disabled = true;
+  if (spellInput) spellInput.classList.add("locked");
   if (spellSubmit) spellSubmit.disabled = true;
+  appViews.practice.querySelectorAll("[data-key]").forEach((keyButton) => {
+    keyButton.disabled = true;
+  });
 
   if (button) button.classList.add(ok ? "correct" : "wrong");
   updateItemStats(q, ok);
@@ -1840,7 +1906,7 @@ function buildQuestionPool(mode) {
   const scopedItems = selectedScope ? getQuestionItemsForScope(selectedScope.scopeId) : [];
 
   if (mode === "warmup") return getWarmupQuestions();
-  if (mode === "mistakes") return mistakeQuestions;
+  if (mode === "mistakes") return getMistakeQuestionsForSelectedCategory();
   if (mode === "fiveA-preview-light") return buildFiveAPreviewQuestions("light_practice");
   if (mode === "fiveA-preview-quiz") return buildFiveAPreviewQuestions("gate_quiz");
   if (mode === "fiveA-strength") return buildFiveAStrengthQuestions();
@@ -2071,6 +2137,44 @@ function getActiveMistakes() {
   return state.mistakes
     .filter((item) => item.status !== "mastered")
     .sort((a, b) => (b.priority || 1) - (a.priority || 1) || new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+}
+
+function getMistakeQuestionsForSelectedCategory() {
+  const category = state.selectedMistakeCategory || "all";
+  return getActiveMistakes()
+    .filter((item) => category === "all" || getMistakeCategory(item).id === category)
+    .slice(0, 8)
+    .map(mistakeToQuestion);
+}
+
+function getMistakeCategories(items = getActiveMistakes()) {
+  const base = [
+    { id: "listen", title: "听力", hint: "听音选词、听音默写、听音辨义" },
+    { id: "spelling", title: "单词拼写", hint: "看中文写英文、补字母、完整拼写" },
+    { id: "phrase", title: "短句", hint: "短语、固定搭配、句型替换、句子填空" },
+    { id: "text", title: "对话/课文", hint: "对话理解、课文句子、场景问答" }
+  ];
+  return base.map((category) => {
+    const categoryItems = items.filter((item) => getMistakeCategory(item).id === category.id);
+    const attempts = categoryItems.reduce((sum, item) => sum + (item.times || 1), 0);
+    return {
+      ...category,
+      count: categoryItems.length,
+      activeCount: categoryItems.filter((item) => item.status !== "mastered").length,
+      masteredCount: categoryItems.filter((item) => item.status === "mastered").length,
+      recentErrorRate: attempts ? Math.min(100, Math.round((categoryItems.length / attempts) * 100)) : 0
+    };
+  });
+}
+
+function getMistakeCategory(item) {
+  const text = `${item.reason || ""} ${item.skill || ""} ${item.questionType || ""} ${item.itemKind || ""} ${item.sourceMode || ""}`.toLowerCase();
+  if (/听|listen|audio/.test(text)) return { id: "listen", title: "听力" };
+  if (/dialogue|story|text|课文|对话/.test(text) || item.itemKind === "textDialogue") return { id: "text", title: "对话/课文" };
+  if (/sentence|phrase|use|句|短语|搭配|语法/.test(text) || ["phrase", "sentence"].includes(item.itemKind)) {
+    return { id: "phrase", title: "短句" };
+  }
+  return { id: "spelling", title: "单词拼写" };
 }
 
 function mistakeToQuestion(item) {
@@ -3095,7 +3199,7 @@ function voiceOptions() {
 }
 
 function speak(text, options = {}) {
-  speakText(text, options);
+  speakLikeTeacher(text, { repeat: 1, ...options });
 }
 
 async function ensureSpeechReady() {
@@ -3116,8 +3220,10 @@ async function speakText(text, options = {}) {
   const ready = await ensureSpeechReady();
   if (!ready) return;
 
+  const sequenceId = options.sequenceId || playbackSequenceId;
+  if (sequenceId !== playbackSequenceId) return;
   const runId = ++speechRunId;
-  window.speechSynthesis.cancel();
+  if (!options.continueQueue) window.speechSynthesis.cancel();
   window.speechSynthesis.resume?.();
 
   const utterance = new SpeechSynthesisUtterance(text);
@@ -3125,8 +3231,8 @@ async function speakText(text, options = {}) {
   utterance.lang = voice?.lang || "en-GB";
   utterance.voice = voice || null;
   utterance.rate = options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE;
-  utterance.pitch = 1;
-  utterance.volume = 1;
+  utterance.pitch = options.pitch ?? 1.08;
+  utterance.volume = options.volume ?? 0.96;
   return new Promise((resolve) => {
     let settled = false;
     let started = false;
@@ -3161,19 +3267,48 @@ function sleep(ms) {
 }
 
 async function speakLikeTeacher(text, options = {}) {
+  stopAudioPlayback();
+  const sequenceId = playbackSequenceId;
   const rate = options.rate ?? state.settings.speechRate ?? DEFAULT_SPEECH_RATE;
+  const repeat = options.repeat ?? 1;
   if (!options.silentToast) showToast("正在准备播放...");
-  await speakText(text, { rate });
-  await sleep(700);
-  await speakText(text, { rate: Math.max(SLOW_SPEECH_RATE, rate - 0.04) });
+  const parts = splitSpeechText(text);
+  for (let round = 0; round < repeat; round += 1) {
+    for (let index = 0; index < parts.length; index += 1) {
+      if (sequenceId !== playbackSequenceId) return;
+      await speakText(parts[index], {
+        rate: round === 0 ? rate : Math.max(SLOW_SPEECH_RATE, rate - 0.03),
+        sequenceId,
+        continueQueue: round > 0 || index > 0
+      });
+      if (index < parts.length - 1) await sleep(280);
+    }
+    if (round < repeat - 1) await sleep(650);
+  }
 }
 
 async function speakLessonList(texts) {
   showToast("英音领读：每项读两遍，中间留停顿");
   for (let index = 0; index < texts.length; index += 1) {
-    await speakLikeTeacher(texts[index]);
+    if (!appViews.lesson.classList.contains("active")) return;
+    await speakLikeTeacher(texts[index], { repeat: 2, silentToast: true });
+    if (!appViews.lesson.classList.contains("active")) return;
     if (index < texts.length - 1) await sleep(2600);
   }
+}
+
+function splitSpeechText(text) {
+  const value = String(text || "").trim();
+  if (!value) return [""];
+  if (value.includes("...")) return value.split(/\s*\.\.\.\s*/).filter(Boolean);
+  if (value.length > 26) return value.split(/(?<=[.!?])\s+|,\s+/).filter(Boolean);
+  return [value];
+}
+
+function stopAudioPlayback() {
+  playbackSequenceId += 1;
+  speechRunId += 1;
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 
 async function withPlaybackButton(button, action) {
@@ -3335,13 +3470,28 @@ function freeReviewCard(item, ready) {
 function mistakeItem(item) {
   const text = item.en || item.answer;
   const mastered = item.status === "mastered";
+  const category = getMistakeCategory(item);
   return `
     <div class="mistake-item">
       <span>
         <strong>${text}</strong>
-        <br><span class="muted">${item.zh || ""} · ${item.reason} · 见过 ${item.times} 次 · 已稳 ${item.correctStreak || 0}/3</span>
+        <br><span class="muted">${item.zh || ""} · ${category.title} · ${item.reason} · 见过 ${item.times} 次 · 已稳 ${item.correctStreak || 0}/3</span>
       </span>
       <span class="badge ${mastered ? "" : "amber"}">${mastered ? "已稳定" : "后面再见"}</span>
+    </div>
+  `;
+}
+
+function mistakeCategoryCard(category) {
+  return `
+    <div class="mistake-category-card">
+      <div>
+        <span class="badge blue">${category.title}</span>
+        <h3>${category.activeCount} 个待回收</h3>
+        <p class="muted">${category.hint}</p>
+        <p class="muted">最近错误率参考 ${category.recentErrorRate}% · 已清掉 ${category.masteredCount}</p>
+      </div>
+      <button class="secondary-button" data-mistake-category="${category.id}" ${category.activeCount ? "" : "disabled"}>开始回收</button>
     </div>
   `;
 }
@@ -3486,6 +3636,7 @@ function loadState() {
       learnedItems: stored?.learnedItems || {},
       selectedReview: stored?.selectedReview || null,
       selectedScope: stored?.selectedScope || null,
+      selectedMistakeCategory: stored?.selectedMistakeCategory || "all",
       selectedSpeakingScopeId: stored?.selectedSpeakingScopeId || "",
       itemStats: stored?.itemStats || {},
       sessionSummaries: stored?.sessionSummaries || []
