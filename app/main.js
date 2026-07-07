@@ -37,6 +37,7 @@ const defaultState = {
   mistakes: [],
   itemStats: {},
   sessionSummaries: [],
+  resetLog: [],
   importedPackages: [],
   learnedItems: {},
   lessonProgress: {
@@ -1144,6 +1145,7 @@ function renderParent() {
             导入学习包
             <input id="packageInput" type="file" accept="application/json" hidden />
           </label>
+          <button class="danger-button" data-action="reset-test-records">清空测试记录并重新开始</button>
           <button class="danger-button" data-action="clear-cache">清理缓存</button>
         </div>
       </section>
@@ -1226,6 +1228,7 @@ function renderParent() {
   `;
 
   appViews.parent.querySelector("[data-action='export']").addEventListener("click", exportRecords);
+  appViews.parent.querySelector("[data-action='reset-test-records']").addEventListener("click", resetTestRecords);
   appViews.parent.querySelector("[data-action='clear-cache']").addEventListener("click", clearAppCache);
   appViews.parent.querySelector("[data-action='add-manual-mistake']").addEventListener("click", addManualMistake);
   appViews.parent.querySelector("#packageInput").addEventListener("change", importPackage);
@@ -1364,7 +1367,7 @@ function renderLesson() {
         markPreviewChunkGate(chunk);
       }
       if (step.kind === "light") {
-        startPractice("fiveA-preview-light");
+        startPractice("fiveA-preview-light", { nextAfter: "fiveA-preview-quiz" });
         return;
       }
       if (step.kind === "quiz") {
@@ -1713,8 +1716,7 @@ function handleAnswer(answer, button) {
     currentPractice.correct += 1;
     showToast("很稳，继续");
   } else {
-    addMistake(q, inferReason(q));
-    showToast("先记下来，后面换个方式再见它");
+    handleWrongAnswer(q);
   }
   const feedback = appViews.practice.querySelector("#answerFeedback");
   if (feedback) {
@@ -1738,7 +1740,10 @@ function handleAnswer(answer, button) {
     unitId: q.unitId || currentPractice.scope?.unitId || inferUnitId(q.itemId),
     scopeId: currentPractice.scope?.scopeId || q.scopeId || null,
     skill: q.skill,
-    questionType: q.type,
+    questionType: q.questionType || q.type,
+    practiceFace: q.practiceFace || "",
+    attemptIndex: q.attemptIndex || 1,
+    gateStatus: q.gateStatus || null,
     chunkId: q.chunkId || currentLesson?.chunkId,
     learningStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.learningStatus,
     testStatus: state.itemStats[getStatKey(q.itemId, q.itemKind)]?.testStatus,
@@ -1759,6 +1764,7 @@ function finishPractice() {
   const score = Math.round((currentPractice.correct / currentPractice.total) * 100);
   const sessionSummary = buildSessionSummary(currentPractice, score);
   const nextAfter = currentPractice.nextAfter || "";
+  const showSubmitLog = !nextAfter;
   state.completed += 1;
   state.streak = Math.max(1, state.streak + 1);
   state.sessionSummaries.push(sessionSummary);
@@ -1780,9 +1786,10 @@ function finishPractice() {
         <div class="button-row" style="justify-content:center;margin-top:16px">
           ${
             nextAfter
-              ? `<button class="primary-button" data-action="continue-today-flow">${nextAfter === "fiveA-strength" ? "继续五上加强测试" : "继续五上预习"}</button>`
+              ? `<button class="primary-button" data-action="continue-today-flow">${continueTodayFlowLabel(nextAfter)}</button>`
               : ""
           }
+          ${showSubmitLog ? `<button class="primary-button" data-action="submit-learning-log">提交学习日志</button>` : ""}
           <button class="primary-button" data-route-link="home">回到今日</button>
           <button class="secondary-button" data-route-link="mistakes">看小漏洞</button>
         </div>
@@ -1794,11 +1801,25 @@ function finishPractice() {
   if (continueButton) {
     continueButton.addEventListener("click", () => continueTodayFlow(nextAfter));
   }
+  const submitButton = appViews.practice.querySelector("[data-action='submit-learning-log']");
+  if (submitButton) {
+    submitButton.addEventListener("click", exportRecords);
+  }
+}
+
+function continueTodayFlowLabel(nextAfter) {
+  if (nextAfter === "fiveA-strength") return "继续五上加强测试";
+  if (nextAfter === "fiveA-preview-quiz") return "继续五上小测";
+  return "继续五上预习";
 }
 
 function continueTodayFlow(nextAfter) {
   if (nextAfter === "fiveA-strength") {
     startPractice("fiveA-strength");
+    return;
+  }
+  if (nextAfter === "fiveA-preview-quiz") {
+    startPractice("fiveA-preview-quiz");
     return;
   }
   if (nextAfter === "fiveA-preview") {
@@ -2291,6 +2312,14 @@ function buildSessionSummary(practice, score) {
 }
 
 function updateUnitProgressAfterPractice(practice, score) {
+  if (practice.mode === "fiveA-preview-light") {
+    markFiveAPreviewLightDone(practice);
+    return;
+  }
+  if (practice.mode === "fiveA-preview-quiz") {
+    markFiveAPreviewMiniQuizDone(practice, score);
+    return;
+  }
   const unit = getCurrentStudyUnit();
   if (!unit) return;
   if (practice.mode === "preview-practice") {
@@ -2309,6 +2338,65 @@ function updateUnitProgressAfterPractice(practice, score) {
     } else if (state.unitProgress[unit.id] !== "previewing") {
       state.unitProgress[unit.id] = "consolidating";
     }
+  }
+}
+
+function markFiveAPreviewLightDone(practice) {
+  const chunk = getCurrentPreviewChunk();
+  getPreviewChunkItems(chunk).forEach((item) => {
+    const status = state.previewItemStatus[item.itemId] || {
+      itemId: item.itemId,
+      wordListItemId: item.itemId,
+      itemKind: item.itemKind,
+      wordListOrder: item.orderKey || item.itemId,
+      unitId: item.unitId,
+      gateStatus: {}
+    };
+    status.gateStatus = {
+      heardStandardAudio: true,
+      meaningViewed: true,
+      readOrRepeatDone: true,
+      ...(status.gateStatus || {}),
+      lightPracticeDone: true
+    };
+    status.lightQuizStatus = practice.results.some((result) => result.question.itemId === item.itemId && !result.correct)
+      ? "hasWeakFace"
+      : "passed";
+    status.previewStatus = "lightDone";
+    status.updatedAt = new Date().toISOString();
+    state.previewItemStatus[item.itemId] = status;
+  });
+}
+
+function markFiveAPreviewMiniQuizDone(practice, score) {
+  const chunk = getCurrentPreviewChunk();
+  const wrongIds = new Set(practice.results.filter((result) => !result.correct).map((result) => result.question.itemId));
+  getPreviewChunkItems(chunk).forEach((item) => {
+    const status = state.previewItemStatus[item.itemId] || {
+      itemId: item.itemId,
+      wordListItemId: item.itemId,
+      itemKind: item.itemKind,
+      wordListOrder: item.orderKey || item.itemId,
+      unitId: item.unitId,
+      gateStatus: {}
+    };
+    status.gateStatus = {
+      heardStandardAudio: true,
+      meaningViewed: true,
+      readOrRepeatDone: true,
+      lightPracticeDone: true,
+      ...(status.gateStatus || {}),
+      miniQuizDone: !wrongIds.has(item.itemId)
+    };
+    status.miniQuizStatus = wrongIds.has(item.itemId) ? "needsRecycle" : "passed";
+    status.previewStatus = wrongIds.has(item.itemId) ? "recycleNeeded" : "initialPassed";
+    status.updatedAt = new Date().toISOString();
+    state.previewItemStatus[item.itemId] = status;
+  });
+
+  state.lastCompletedTaskId = chunk?.chunkId || "";
+  if (score === 100 && chunk) {
+    state.nextTaskCursor.fiveAPreviewChunkIndex = (state.nextTaskCursor.fiveAPreviewChunkIndex || 0) + 1;
   }
 }
 
@@ -2468,6 +2556,70 @@ function addMistake(question, reason) {
     });
   }
   saveState();
+}
+
+function handleWrongAnswer(question) {
+  if (currentPractice?.mode === "fiveA-preview-light") {
+    const entered = recordLightWeakFace(question);
+    showToast(entered ? "先记下来，后面换个方式再见它" : "先记下薄弱面，再遇到会回收");
+    return;
+  }
+  if (currentPractice?.mode === "fiveA-preview-quiz") {
+    addMiniQuizMistake(question);
+    showToast("先记下来，后面换个方式再见它");
+    return;
+  }
+  addMistake(question, inferReason(question));
+  showToast("先记下来，后面换个方式再见它");
+}
+
+function recordLightWeakFace(question) {
+  const weakAspect = mapLightWeakAspect(question);
+  const key = `${question.itemId || question.answer}:${weakAspect}`;
+  const existing = state.lightWeakFaces?.[key] || {
+    itemId: question.itemId,
+    weakAspect,
+    consecutiveWrongCount: 0,
+    enteredWeaknessPool: false
+  };
+  existing.consecutiveWrongCount += 1;
+  existing.lastWrongAt = new Date().toISOString();
+  state.lightWeakFaces[key] = existing;
+  if (existing.consecutiveWrongCount >= 2 && !existing.enteredWeaknessPool) {
+    existing.enteredWeaknessPool = true;
+    addMistake(question, `轻测薄弱面：${weakAspectLabel(weakAspect)}`);
+    return true;
+  }
+  saveState();
+  return false;
+}
+
+function mapLightWeakAspect(question) {
+  const text = `${question.questionType || ""} ${question.practiceFace || ""} ${question.skill || ""}`.toLowerCase();
+  if (/listen/.test(text) || question.type === "listen-choice") return "listen_choose";
+  if (/fill|spell/.test(text) || question.type === "spell") return "zh_fill_en";
+  return "en_zh_recognition";
+}
+
+function weakAspectLabel(weakAspect) {
+  return {
+    en_zh_recognition: "英中互认",
+    listen_choose: "听音选词",
+    zh_fill_en: "看中文补英文"
+  }[weakAspect] || weakAspect;
+}
+
+function addMiniQuizMistake(question) {
+  addMistake(question, "五上小测错词");
+  const key = question.answer || question.itemId;
+  const existing = state.mistakes.find((item) => item.en === key || item.answer === key || item.itemId === question.itemId);
+  if (existing) {
+    existing.miniQuizWrongAt = new Date().toISOString();
+    existing.reserveNextDaySlot = true;
+    existing.recycleWindowDays = Math.min(3, Math.max(1, existing.times || 1));
+    existing.updatedAt = existing.miniQuizWrongAt;
+    saveState();
+  }
 }
 
 function buildExportSummary(records = state.records || []) {
@@ -2835,6 +2987,64 @@ async function clearAppCache() {
     await Promise.all(keys.map((key) => caches.delete(key)));
   }
   showToast("缓存已清理");
+}
+
+function resetTestRecords() {
+  const confirmed = confirm(
+    "确定清空测试记录并重新开始吗？\n\n会清空本机学习记录、错题、小漏洞、进度和导出状态，用于重新开始测试。\n\n不会清空当前学习包、APP 设置、英音设置和孩子姓名。"
+  );
+  if (!confirmed) return;
+
+  const keptFields = {
+    activeRoute: state.activeRoute,
+    packageVersion: state.packageVersion,
+    learningPackageVersion: state.learningPackageVersion,
+    contentHash: state.contentHash,
+    cachedLearningPackage: state.cachedLearningPackage,
+    updateLog: state.updateLog,
+    studentName: state.studentName,
+    importedPackages: state.importedPackages,
+    settings: state.settings
+  };
+  const resetAt = new Date().toISOString();
+  const resetLog = [
+    ...(state.resetLog || []),
+    {
+      resetAt,
+      resetKind: "test_records_reset",
+      clearedFields: [
+        "records",
+        "mistakes",
+        "itemStats",
+        "sessionSummaries",
+        "learnedItems",
+        "lessonProgress",
+        "unitProgress",
+        "completed",
+        "streak",
+        "lastLogExportAt",
+        "nextTaskCursor",
+        "fiveAStage",
+        "previewItemStatus",
+        "lightWeakFaces"
+      ],
+      keptFields: ["currentLearningPackage", "appSettings", "speechSettings", "studentName", "cachedLearningPackageResources"],
+      operator: "parent"
+    }
+  ].slice(-20);
+
+  state = {
+    ...defaultState,
+    ...keptFields,
+    activeRoute: "home",
+    resetLog
+  };
+  currentPractice = null;
+  currentLesson = null;
+  saveState();
+  renderAll();
+  navigate("home");
+  showToast("测试记录已清空，可以重新开始");
 }
 
 function setupSpeechVoices() {
@@ -3262,9 +3472,17 @@ function loadState() {
       updateLog: stored?.updateLog || [],
       lastLogExportAt: stored?.lastLogExportAt || "",
       studentName: stored?.studentName || "",
+      resetLog: stored?.resetLog || [],
       settings: { ...defaultState.settings, ...(stored?.settings || {}) },
       unitProgress: { ...defaultState.unitProgress, ...(stored?.unitProgress || {}) },
       lessonProgress: { ...defaultState.lessonProgress, ...(stored?.lessonProgress || {}) },
+      fiveAStage: stored?.fiveAStage || defaultState.fiveAStage,
+      nextTaskCursor: { ...defaultState.nextTaskCursor, ...(stored?.nextTaskCursor || {}) },
+      lastCompletedTaskId: stored?.lastCompletedTaskId || "",
+      activeLearningPackageId: stored?.activeLearningPackageId || "",
+      activeLearningPackageVersion: stored?.activeLearningPackageVersion || "",
+      previewItemStatus: stored?.previewItemStatus || {},
+      lightWeakFaces: stored?.lightWeakFaces || {},
       learnedItems: stored?.learnedItems || {},
       selectedReview: stored?.selectedReview || null,
       selectedScope: stored?.selectedScope || null,

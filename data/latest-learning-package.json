@@ -35,7 +35,7 @@
     "sourcePolicy": "three-total-libraries",
     "appCodeVersionModified": false,
     "uploadStatus": "uploaded",
-    "uploadedAt": "2026-07-07T02:33:36.116Z",
+    "uploadedAt": "2026-07-07T11:20:24.955Z",
     "publicManifestUrl": "https://wang073901-ops.github.io/xiaobao-study/data/latest-learning-package.json",
     "publicPackageUrl": "https://wang073901-ops.github.io/xiaobao-study/data/packages/xiaobao-english-learning-pack-2026-07-07-1001.json"
   },
@@ -44,5 +44,5 @@
     "includesReportsDirectory": false,
     "githubPagesPolicy": "Only publish dist/github-pages data needed by the APP."
   },
-  "contentHash": "a8fadd4cf7d0e7a7a53b62e3e4b6040b7414c685be9e5920414dabee00168f10"
+  "contentHash": "0dbef88677062425c39d0f6b26ab686ef3763b1f8e48c1123f97deaeada0f3e4"
 }
