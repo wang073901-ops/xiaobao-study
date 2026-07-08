@@ -2912,6 +2912,9 @@ function getMistakeCategory(item) {
 
 function mistakeToQuestion(item) {
   const isListening = item.reason === "听不出来";
+  if (["phrase", "sentence"].includes(item.itemKind)) {
+    return mistakeShortChoiceQuestion(item, isListening);
+  }
   return {
     type: "spell",
     title: isListening ? "听音默写" : item.itemKind === "sentence" ? "句子默写" : "默写单词",
@@ -2932,6 +2935,86 @@ function mistakeToQuestion(item) {
     autoPlay: isListening,
     source: item
   };
+}
+
+function mistakeShortChoiceQuestion(item, isListening = false) {
+  const english = getMistakeEnglishText(item);
+  const chinese = getMistakeChineseText(item);
+  const answerSide = english ? "en" : "zh";
+  const answer = english || chinese || item.answer || item.en || "";
+  const prompt = isListening
+    ? item.itemKind === "phrase"
+      ? "听录音，选择听到的短语"
+      : "听录音，选择听到的短句"
+    : chinese || (english ? "选择对应的中文意思" : item.prompt || "选择正确答案");
+  const choices = buildMistakeShortChoices(item, answerSide, answer);
+  return {
+    type: isListening ? "listen-choice" : "meaning-choice",
+    title: isListening ? (item.itemKind === "phrase" ? "听音选短语" : "听音选短句") : item.itemKind === "phrase" ? "短语选择" : "短句选择",
+    badge: "小漏洞回收",
+    level: item.itemKind === "phrase" ? "短语" : "短句",
+    prompt,
+    answer,
+    audioText: english || answer,
+    choices,
+    itemId: item.itemId || item.en || item.answer,
+    itemKind: item.itemKind || "phrase",
+    bookId: item.bookId,
+    unitId: item.unitId,
+    chunkId: item.chunkId,
+    scopeId: item.scopeId,
+    scopeType: item.scopeType,
+    sourceMode: item.sourceMode,
+    skill: isListening ? "listen" : item.skill || "recognition",
+    autoPlay: isListening,
+    interactionMode: "choice",
+    requiresKeyboardInput: false,
+    source: item
+  };
+}
+
+function getMistakeEnglishText(item) {
+  return [item.answer, item.en, item.zh, item.prompt].find((value) => looksEnglishText(value)) || "";
+}
+
+function getMistakeChineseText(item) {
+  return [item.zh, item.prompt, item.answer, item.en].find((value) => containsCjk(value)) || "";
+}
+
+function buildMistakeShortChoices(item, side, answer) {
+  const candidates = [
+    ...getReviewQuestionItems(),
+    ...getLearnedQuestionItems(),
+    ...getActiveMistakes()
+  ];
+  const values = candidates
+    .filter((candidate) => candidate.itemKind === item.itemKind)
+    .filter((candidate) => candidate.itemId !== item.itemId && candidate.id !== item.itemId)
+    .map((candidate) => (side === "en" ? getCandidateEnglishText(candidate) : getCandidateChineseText(candidate)))
+    .filter((value) => value && normalizeForChoice(value) !== normalizeForChoice(answer));
+  const distractors = uniqueValues(values).slice(0, 3);
+  return shuffle(uniqueValues([answer, ...distractors]));
+}
+
+function getCandidateEnglishText(item) {
+  return [item.en, item.answer, item.zh, item.prompt].find((value) => looksEnglishText(value)) || "";
+}
+
+function getCandidateChineseText(item) {
+  return [item.zh, item.prompt, item.answer, item.en].find((value) => containsCjk(value)) || "";
+}
+
+function looksEnglishText(value) {
+  const text = String(value || "").trim();
+  return /[A-Za-z]/.test(text) && !containsCjk(text);
+}
+
+function containsCjk(value) {
+  return /[\u3400-\u9fff]/.test(String(value || ""));
+}
+
+function normalizeForChoice(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function questionForLearnedItem(item, options = {}) {
