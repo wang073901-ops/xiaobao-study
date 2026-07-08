@@ -1,77 +1,33 @@
-const CACHE_NAME = "smart-study-v1.1.22";
-const APP_SHELL = [
-  "./",
-  "index.html",
-  "manifest.webmanifest",
-  "app/styles.css?v=20260708-2144",
-  "app/main.js?v=20260708-2144",
-  "assets/app-icon.svg",
-  "data/latest-learning-package.json",
-  "data/english-5a-demo.json"
-];
+const SW_RESET_VERSION = "20260708-2223";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-  );
-  self.clients.claim();
+  event.waitUntil(resetServiceWorker());
 });
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  const url = new URL(event.request.url);
-  const isNavigationRequest =
-    event.request.mode === "navigate" || event.request.destination === "document" || url.pathname.endsWith("/index.html");
-  const isLearningPackageRequest =
-    url.pathname.endsWith("/data/latest-learning-package.json") || url.pathname.endsWith("/data/english-5a-demo.json");
-  const isAppShellAsset =
-    url.pathname.endsWith("/app/main.js") ||
-    url.pathname.endsWith("/app/styles.css") ||
-    url.pathname.endsWith("/app-version.json") ||
-    url.pathname.endsWith("/sw.js");
+  event.respondWith(fetch(event.request));
+});
 
-  if (isNavigationRequest || isAppShellAsset) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("index.html")))
-    );
-    return;
+async function resetServiceWorker() {
+  if ("caches" in self) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
   }
-
-  if (isLearningPackageRequest) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-    return;
-  }
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return response;
-        })
-        .catch(() => caches.match("index.html"));
+  await self.clients.claim();
+  const windowClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  await Promise.all(
+    windowClients.map((client) => {
+      const url = new URL(client.url);
+      if (!url.pathname.startsWith("/xiaobao-study/")) return Promise.resolve();
+      if (url.searchParams.get("sw-cleared") === SW_RESET_VERSION) return Promise.resolve();
+      url.searchParams.set("sw-cleared", SW_RESET_VERSION);
+      return client.navigate(url.href);
     })
   );
-});
+  await self.registration.unregister();
+}

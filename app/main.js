@@ -1,5 +1,5 @@
 const APP_VERSION = "1.0.1";
-const APP_BUILD_ID = "20260708-2144";
+const APP_BUILD_ID = "20260708-2223";
 const APP_BASE_URL = new URL("../", import.meta.url);
 const APP_VERSION_MANIFEST_URL = new URL("app-version.json", APP_BASE_URL).href;
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
@@ -424,10 +424,10 @@ function setupPwa() {
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker
-      .register(new URL("sw.js", APP_BASE_URL), { scope: APP_BASE_URL.pathname, updateViaCache: "none" })
-      .then((registration) => registration.update())
+      .getRegistrations()
+      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
       .catch(() => {
-        showToast("离线缓存暂未启用");
+        showToast("离线缓存清理暂未完成");
       });
   }
 }
@@ -4191,12 +4191,17 @@ async function importPackage(event) {
 }
 
 async function clearAppCache() {
-  if (!confirm("清理缓存不会删除学习记录，但会让离线资源重新下载。确定清理？")) return;
+  if (!confirm("清理缓存不会删除学习记录。会移除旧离线页面并重新打开 APP，确定继续？")) return;
   if ("caches" in window) {
     const keys = await caches.keys();
     await Promise.all(keys.map((key) => caches.delete(key)));
   }
-  showToast("缓存已清理");
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+  showToast("缓存已清理，正在重新打开");
+  setTimeout(() => window.location.replace(`./?cache-cleared=${Date.now()}`), 500);
 }
 
 function resetTestRecords() {
