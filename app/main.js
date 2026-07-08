@@ -1,5 +1,7 @@
 const APP_VERSION = "1.0.1";
+const APP_BUILD_ID = "20260708-2100";
 const APP_BASE_URL = new URL("../", import.meta.url);
+const APP_VERSION_MANIFEST_URL = new URL("app-version.json", APP_BASE_URL).href;
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
 const LATEST_PACKAGE_URL = new URL("data/latest-learning-package.json", APP_BASE_URL).href;
 const TOTAL_REVIEW_MANIFEST_URL = new URL("data/learning-packages/latest-total-review-package.json", APP_BASE_URL).href;
@@ -132,6 +134,7 @@ const toast = document.querySelector("#toast");
 init();
 
 async function init() {
+  await checkForAppBuildUpdate();
   data = await loadLearningPackage();
   await loadTotalLearningPackages();
   ensureTestModeReset();
@@ -147,6 +150,57 @@ async function init() {
   setupSpeechVoices();
   renderAll();
   navigate("home");
+}
+
+async function checkForAppBuildUpdate() {
+  try {
+    const manifest = await fetchJson(`${APP_VERSION_MANIFEST_URL}?t=${Date.now()}`, { cache: "no-store" });
+    const onlineBuildId = manifest?.buildId || "";
+    if (!onlineBuildId) return;
+    if (onlineBuildId === APP_BUILD_ID) {
+      appendUpdateLog({
+        checkedAt: new Date().toISOString(),
+        updateType: "app",
+        onlineVersion: onlineBuildId,
+        localVersion: APP_BUILD_ID,
+        success: true,
+        reason: "APP 已是最新构建"
+      });
+      saveState();
+      return;
+    }
+    appendUpdateLog({
+      checkedAt: new Date().toISOString(),
+      updateType: "app",
+      onlineVersion: onlineBuildId,
+      localVersion: APP_BUILD_ID,
+      success: false,
+      reason: "检测到新 APP 构建，重新打开后生效"
+    });
+    saveState();
+    await refreshAppShellCaches();
+    showToast("检测到新版本，完全退出后重开会更新");
+  } catch (error) {
+    appendUpdateLog({
+      checkedAt: new Date().toISOString(),
+      updateType: "app",
+      onlineVersion: "",
+      localVersion: APP_BUILD_ID,
+      success: false,
+      reason: `APP 版本检查失败：${error.message || "网络不可用"}`
+    });
+    saveState();
+  }
+}
+
+async function refreshAppShellCaches() {
+  if (!("caches" in window)) return;
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key.startsWith("smart-study-")).map((key) => caches.delete(key)));
+  } catch {
+    // 缓存清理失败不影响继续学习。
+  }
 }
 
 function ensureTestModeReset() {
@@ -1157,6 +1211,7 @@ function renderHome() {
         ${trackCard("即将学习预习", "五年级上册", "单词预习 / 课文听读 / 核心句型 / 听力场景 / 拼写听写 / 单元小测", "preview")}
       </div>
     </section>
+    ${homeVersionBadge()}
   `;
 
   appViews.home.querySelector("[data-action='start-learning']").addEventListener("click", () => {
@@ -1179,6 +1234,21 @@ function renderHome() {
     });
   }
   bindRouteLinks(appViews.home);
+}
+
+function homeVersionBadge() {
+  const pack = getPackageVersion(data);
+  const packShort = formatPackageVersionShort(pack);
+  const latest = state.updateLog?.find((item) => item.updateType === "app") || state.updateLog?.[0];
+  const status = latest?.success === false ? "更新待确认" : "已检查";
+  return `<div class="home-version-badge">v${APP_VERSION} · ${APP_BUILD_ID} · pack ${packShort} · ${status}</div>`;
+}
+
+function formatPackageVersionShort(version) {
+  const text = String(version || "");
+  const match = text.match(/(\d{4})-(\d{2})-(\d{2})-(\d{4})$/);
+  if (match) return `${match[1]}${match[2]}${match[3]}-${match[4]}`;
+  return text ? text.replace(/^xiaobao-english-learning-pack-/, "").slice(-13) : "no-pack";
 }
 
 function renderEnglish() {
@@ -1392,6 +1462,7 @@ function renderParent() {
         <h2>平板学习包</h2>
         <div class="report-list">
           ${reportItem("APP 版本", APP_VERSION, "badge")}
+          ${reportItem("APP 构建", APP_BUILD_ID, "badge")}
           ${reportItem("当前学习包", `${data.title} v${data.version}`, "badge blue")}
           ${reportItem("包类型", data.packageKind === "tablet-learning-package" ? "Mini 生成，平板执行" : "本地资料包", "badge blue")}
           ${reportItem("校验状态", isMaterialVerified() ? `${statusText}，只开放已核验内容` : "Mini 资料校对中，学习入口已锁定", isMaterialVerified() ? "badge" : "badge amber")}
@@ -3812,6 +3883,7 @@ function buildLearningLogV2(exportedAt, exportDate, records, roundRecords) {
     hasPreview5A: records.some((record) => String(record.mode || "").startsWith("fiveA") || String(record.mode || "").includes("preview")),
     app: {
       appVersion: APP_VERSION,
+      buildId: APP_BUILD_ID,
       platform: "web/pwa/tablet",
       testMode: Boolean(state.testMode)
     },
@@ -3881,6 +3953,7 @@ function buildFeishuLearningLog(exportedAt, exportDate, records, previousExporte
     exportRange,
     app: {
       appVersion: APP_VERSION,
+      buildId: APP_BUILD_ID,
       platform: "web/pwa/tablet"
     },
     learningPackage: {

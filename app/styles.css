@@ -145,6 +145,16 @@ button:disabled {
   width: fit-content;
 }
 
+.home-version-badge {
+  margin: 14px auto 0;
+  width: fit-content;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .status-dot {
   width: 10px;
   height: 10px;

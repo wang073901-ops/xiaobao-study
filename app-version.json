@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "app-version-manifest-v1",
+  "appVersion": "1.0.1",
+  "buildId": "20260708-2100",
+  "generatedAt": "2026-07-08T13:03:49.193Z",
+  "files": {
+    "index": "index.html?v=20260708-2100",
+    "main": "app/main.js?v=20260708-2100",
+    "styles": "app/styles.css?v=20260708-2100"
+  }
+}
