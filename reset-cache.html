@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7fbf7" />
+    <title>刷新小宝学习 APP</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --green: #155f4b;
+        --ink: #14231d;
+        --muted: #62746b;
+        --line: #d8e7df;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #f4faf6;
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(520px, 100%);
+        padding: 26px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 18px 40px rgba(30, 80, 62, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 26px;
+      }
+
+      p {
+        margin: 8px 0;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      button,
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        margin-top: 16px;
+        padding: 0 18px;
+        border: 0;
+        border-radius: 10px;
+        background: var(--green);
+        color: #fff;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .status {
+        margin-top: 12px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>正在刷新学习 APP</h1>
+      <p>这个页面会清理旧的离线缓存，然后自动打开新版学习 APP。</p>
+      <p id="status" class="status">准备清理旧缓存...</p>
+      <button id="retryButton" type="button" hidden>重新清理</button>
+      <a id="openButton" href="./?from=cache-reset" hidden>打开新版 APP</a>
+    </main>
+
+    <script>
+      const statusEl = document.querySelector("#status");
+      const retryButton = document.querySelector("#retryButton");
+      const openButton = document.querySelector("#openButton");
+
+      async function resetAppCache() {
+        retryButton.hidden = true;
+        openButton.hidden = true;
+        statusEl.textContent = "正在清理旧缓存...";
+        try {
+          if ("serviceWorker" in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+          }
+          if ("caches" in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          }
+          statusEl.textContent = "清理完成，正在打开新版...";
+          const target = `./?cache-reset=${Date.now()}`;
+          openButton.href = target;
+          setTimeout(() => window.location.replace(target), 700);
+        } catch (error) {
+          statusEl.textContent = `清理失败：${error.message || "请再试一次"}`;
+          retryButton.hidden = false;
+          openButton.hidden = false;
+        }
+      }
+
+      retryButton.addEventListener("click", resetAppCache);
+      resetAppCache();
+    </script>
+  </body>
+</html>
