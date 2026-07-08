@@ -21,6 +21,13 @@ const KEYBOARD_INPUT_QUESTION_TYPES = new Set([
   "preview_vocab_zh_fill_blank",
   "preview_vocab_zh_full_spell"
 ]);
+const FILL_BLANK_CHOICE_QUESTION_TYPES = new Set([
+  "phrase_fill_blank",
+  "sentence_fill_blank",
+  "dialogue_fill_blank",
+  "preview_sentence_fill_blank",
+  "preview_dialogue_fill_blank"
+]);
 const FEMALE_BRITISH_VOICES = /serena|susan|martha|kate|shelley|stephanie|sarah|victoria|emma|amy|ava|samantha|karen|moira|zira|aria|jenny|sonia|libby|maisie|female/i;
 const MALE_VOICES = /daniel|arthur|oliver|george|tom|male/i;
 
@@ -2131,6 +2138,7 @@ function getActivePackageSignature() {
 }
 
 function normalizePracticeQuestionInteraction(question = {}) {
+  question = hydrateFillBlankChoiceQuestion(question);
   if (shouldUseKeyboardInput(question)) {
     return {
       ...question,
@@ -2646,6 +2654,7 @@ function buildFiveAStrengthQuestions() {
 }
 
 function packageQuestionToPractice(question, badge, packageKind = "preview") {
+  question = hydrateFillBlankChoiceQuestion(question, packageKind);
   const itemId = question.mainItemId || question.itemId;
   const item = getPackageItem(packageKind, itemId) || {};
   const hasChoices = Array.isArray(question.choices) && question.choices.length > 0;
@@ -2690,10 +2699,65 @@ function packageQuestionToPractice(question, badge, packageKind = "preview") {
 
 function shouldUsePackageKeyboardInput(question, hasChoices) {
   const questionType = String(question.questionType || "");
+  if (isFillBlankChoiceQuestion(question) && hasChoices) return false;
   if (question.requiresKeyboardInput === true) return true;
   if (question.requiresKeyboardInput === false || question.interactionMode === "choice") return false;
   if (hasChoices) return false;
   return KEYBOARD_INPUT_QUESTION_TYPES.has(questionType);
+}
+
+function isFillBlankChoiceQuestion(question = {}) {
+  return FILL_BLANK_CHOICE_QUESTION_TYPES.has(String(question.questionType || ""));
+}
+
+function hydrateFillBlankChoiceQuestion(question = {}, preferredPackageKind = "") {
+  if (!isFillBlankChoiceQuestion(question)) return question;
+  const existingChoices = Array.isArray(question.choices) ? question.choices.filter(Boolean) : [];
+  if (existingChoices.length > 0 && question.requiresKeyboardInput !== true) return question;
+  const sourceQuestion = findFillBlankChoiceSource(question, preferredPackageKind);
+  const sourceChoices = Array.isArray(sourceQuestion?.choices) ? sourceQuestion.choices.filter(Boolean) : [];
+  if (!sourceChoices.length) return question;
+  const answer = sourceQuestion.answer || question.answer || question.targetText || "";
+  return {
+    ...question,
+    prompt: sourceQuestion.prompt || question.prompt,
+    answer,
+    targetText: question.targetText || sourceQuestion.targetText,
+    targetMeaning: question.targetMeaning || sourceQuestion.targetMeaning,
+    choices: shuffle(uniqueValues([answer, ...sourceChoices])),
+    interactionMode: "choice",
+    expectedInputType: "choice",
+    requiresKeyboardInput: false,
+    keyboardLayout: ""
+  };
+}
+
+function findFillBlankChoiceSource(question = {}, preferredPackageKind = "") {
+  const kinds = uniqueValues([preferredPackageKind, "review", "preview", "strength"].filter(Boolean));
+  for (const kind of kinds) {
+    const packageData = getTotalPackage(kind);
+    const source = findMatchingFillBlankQuestion(packageData?.questions || [], question);
+    if (source) return source;
+  }
+  return null;
+}
+
+function findMatchingFillBlankQuestion(questions, target) {
+  if (!questions.length) return null;
+  const exactId = String(target.questionId || "");
+  const mainItemId = String(target.mainItemId || target.itemId || "");
+  const questionType = String(target.questionType || "");
+  if (exactId) {
+    const exact = questions.find((question) => question.questionId === exactId && Array.isArray(question.choices) && question.choices.length);
+    if (exact) return exact;
+  }
+  return questions.find(
+    (question) =>
+      String(question.questionType || "") === questionType &&
+      String(question.mainItemId || question.itemId || "") === mainItemId &&
+      Array.isArray(question.choices) &&
+      question.choices.length
+  );
 }
 
 function getPackageItem(packageKind, itemId) {
