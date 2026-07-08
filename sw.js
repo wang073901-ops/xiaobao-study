@@ -1,10 +1,10 @@
-const CACHE_NAME = "smart-study-v1.1.11";
+const CACHE_NAME = "smart-study-v1.1.13";
 const APP_SHELL = [
   "./",
   "index.html",
   "manifest.webmanifest",
-  "app/styles.css?v=20260708-1235",
-  "app/main.js?v=20260708-1235",
+  "app/styles.css?v=20260708-1620",
+  "app/main.js?v=20260708-1620",
   "assets/app-icon.svg",
   "data/latest-learning-package.json",
   "data/english-5a-demo.json"

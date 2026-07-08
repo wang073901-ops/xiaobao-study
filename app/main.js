@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.0.1";
 const APP_BASE_URL = new URL("../", import.meta.url);
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
 const LATEST_PACKAGE_URL = new URL("data/latest-learning-package.json", APP_BASE_URL).href;
@@ -13,6 +13,12 @@ const SLOW_SPEECH_MIN_RATE = 0.36;
 const SLOW_SPEECH_MAX_RATE = 0.62;
 const QWERTY_KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map((row) => row.split(""));
 const SPELL_SYMBOL_KEYS = ["'", "-", ".", ",", "?", "!"];
+const KEYBOARD_INPUT_QUESTION_TYPES = new Set([
+  "listen_spell_word",
+  "zh_spell_word",
+  "preview_vocab_zh_fill_blank",
+  "preview_vocab_zh_full_spell"
+]);
 const FEMALE_BRITISH_VOICES = /serena|susan|martha|kate|shelley|stephanie|sarah|victoria|emma|amy|ava|samantha|karen|moira|zira|aria|jenny|sonia|libby|maisie|female/i;
 const MALE_VOICES = /daniel|arthur|oliver|george|tom|male/i;
 
@@ -120,6 +126,7 @@ async function init() {
   data = await loadLearningPackage();
   await loadTotalLearningPackages();
   ensureTestModeReset();
+  syncReviewResumeWithCurrentPackage();
   const firstVerifiedUnit = getFirstVerifiedUnit();
   currentSpeakingItem = firstVerifiedUnit?.words?.[0] || {
     id: "material-pending",
@@ -1837,8 +1844,15 @@ function startPractice(mode, options = {}) {
     return;
   }
   if (mode === "warmup" && options.resume && state.reviewResume) {
+    if (!isReviewResumeCompatibleWithCurrentPackage(state.reviewResume)) {
+      archiveIncompatibleReviewResume("learning-package-updated");
+      showToast("学习包已更新，已切换到新题");
+    }
+  }
+  if (mode === "warmup" && options.resume && state.reviewResume) {
     currentPractice = {
       ...state.reviewResume,
+      questions: (state.reviewResume.questions || []).map(normalizePracticeQuestionInteraction),
       paused: false,
       pauseStartedAt: null,
       questionStartedAt: Date.now(),
@@ -1867,7 +1881,7 @@ function startPractice(mode, options = {}) {
     index: 0,
     correct: 0,
     total: pool.length,
-    questions: pool,
+    questions: pool.map(normalizePracticeQuestionInteraction),
     results: [],
     answered: false,
     roundId,
@@ -1952,7 +1966,10 @@ function renderPractice() {
 }
 
 function questionTemplate(q) {
-  if (q.type === "listen-choice") {
+  const useKeyboardInput = shouldUseKeyboardInput(q);
+  const choices = Array.isArray(q.choices) ? q.choices : [];
+
+  if (q.type === "listen-choice" && !useKeyboardInput) {
     scheduleQuestionAudio(q);
     return `
       <section class="question-card">
@@ -1960,7 +1977,7 @@ function questionTemplate(q) {
           <span class="badge blue">${q.level || "听单词"}</span>
           <h2 style="margin-top:12px">${q.title || "听音选词"}</h2>
           <div class="choice-grid">
-            ${q.choices.map((choice) => `<button class="choice-button" data-answer="${escapeAttr(choice)}">${choice}</button>`).join("")}
+            ${choices.map((choice) => `<button class="choice-button" data-answer="${escapeAttr(choice)}">${choice}</button>`).join("")}
           </div>
           <div class="answer-feedback" id="answerFeedback" aria-live="polite"></div>
         </div>
@@ -1968,7 +1985,7 @@ function questionTemplate(q) {
     `;
   }
 
-  if (q.type === "spell") {
+  if (useKeyboardInput) {
     if (q.autoPlay) scheduleQuestionAudio(q);
     return `
       <section class="question-card">
@@ -1991,12 +2008,22 @@ function questionTemplate(q) {
         <h2 style="margin-top:12px">${q.title || "句义选择"}</h2>
         <div class="question-word">${q.prompt}</div>
         <div class="choice-grid">
-          ${q.choices.map((choice) => `<button class="choice-button" data-answer="${escapeAttr(choice)}">${choice}</button>`).join("")}
+          ${choices.map((choice) => `<button class="choice-button" data-answer="${escapeAttr(choice)}">${choice}</button>`).join("")}
         </div>
         <div class="answer-feedback" id="answerFeedback" aria-live="polite"></div>
       </div>
     </section>
   `;
+}
+
+function shouldUseKeyboardInput(question = {}) {
+  const questionType = String(question.questionType || "");
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  if (question.requiresKeyboardInput === false || question.interactionMode === "choice") return false;
+  if (choices.length && question.requiresKeyboardInput !== true) return false;
+  if (question.requiresKeyboardInput === true) return true;
+  if (KEYBOARD_INPUT_QUESTION_TYPES.has(questionType)) return true;
+  return question.type === "spell" && choices.length === 0 && question.itemKind === "word";
 }
 
 function letterKeyboardTemplate(question) {
@@ -2028,8 +2055,16 @@ function getAllowedKeyboardKeys(question) {
   const keys = new Set("abcdefghijklmnopqrstuvwxyz".split(""));
   const expected = String(question.answer || question.audioText || "");
   if (/\s|\.{3}/.test(expected) || question.itemKind === "phrase" || question.itemKind === "sentence") keys.add("space");
+  const symbolVariants = {
+    "'": /['’‘`´＇]/,
+    "-": /[-—–－]/,
+    ".": /[.。]/,
+    ",": /[,，]/,
+    "?": /[?？]/,
+    "!": /[!！]/
+  };
   SPELL_SYMBOL_KEYS.forEach((key) => {
-    if (expected.includes(key) || (key === "'" && /[’‘`´＇]/.test(expected))) keys.add(key);
+    if (symbolVariants[key]?.test(expected)) keys.add(key);
   });
   return keys;
 }
@@ -2078,11 +2113,79 @@ function isReviewPractice(practice = currentPractice) {
   return practice?.mode === "warmup";
 }
 
+function getActivePackageSignature() {
+  return {
+    learningPackageVersion: getPackageVersion(data) || state.learningPackageVersion || "",
+    contentHash: data?.contentHash || state.contentHash || "",
+    packageId: data?.id || state.activeLearningPackageId || ""
+  };
+}
+
+function normalizePracticeQuestionInteraction(question = {}) {
+  if (shouldUseKeyboardInput(question)) {
+    return {
+      ...question,
+      type: "spell",
+      interactionMode: "keyboard-input",
+      expectedInputType: question.expectedInputType || "english",
+      requiresKeyboardInput: true,
+      keyboardLayout: question.keyboardLayout || "qwerty-english-with-symbols",
+      choices: []
+    };
+  }
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  if (choices.length && question.type === "spell") {
+    const isListening = /listen|听音|听句/.test(`${question.questionType || ""} ${question.prompt || ""}`);
+    return {
+      ...question,
+      type: isListening ? "listen-choice" : "meaning-choice",
+      interactionMode: "choice",
+      expectedInputType: "choice",
+      requiresKeyboardInput: false
+    };
+  }
+  return {
+    ...question,
+    requiresKeyboardInput: shouldUseKeyboardInput(question)
+  };
+}
+
+function isReviewResumeCompatibleWithCurrentPackage(resume) {
+  if (!resume) return true;
+  const signature = getActivePackageSignature();
+  if (resume.learningPackageVersion && signature.learningPackageVersion && resume.learningPackageVersion !== signature.learningPackageVersion) return false;
+  if (resume.contentHash && signature.contentHash && !hashesEqual(resume.contentHash, signature.contentHash)) return false;
+  return !(resume.questions || []).some((question) => question.type === "spell" && !shouldUseKeyboardInput(question));
+}
+
+function archiveIncompatibleReviewResume(reason) {
+  if (!state.reviewResume) return;
+  if (state.reviewResume.results?.length) {
+    const record = {
+      ...buildRoundRecord(state.reviewResume, "abandoned-package-updated"),
+      abandonReason: reason
+    };
+    state.roundRecords = [...(state.roundRecords || []), record].slice(-120);
+  }
+  clearReviewResume();
+  saveState();
+}
+
+function syncReviewResumeWithCurrentPackage() {
+  if (!state.reviewResume) return;
+  if (isReviewResumeCompatibleWithCurrentPackage(state.reviewResume)) return;
+  archiveIncompatibleReviewResume("learning-package-updated");
+}
+
 function saveReviewResume(status = "interrupted") {
   if (!isReviewPractice()) return;
+  const packageSignature = getActivePackageSignature();
   state.reviewResume = {
     ...currentPractice,
     roundStatus: currentPractice.paused ? "paused" : status,
+    learningPackageVersion: packageSignature.learningPackageVersion,
+    contentHash: packageSignature.contentHash,
+    packageId: packageSignature.packageId,
     lastSavedAt: new Date().toISOString(),
     interruptedAt: status === "interrupted" ? new Date().toISOString() : currentPractice.interruptedAt || null
   };
@@ -2154,7 +2257,7 @@ function handleHelpRequest() {
   const q = currentPractice.questions[currentPractice.index];
   const timeSpentMs = getCurrentQuestionTimeSpentMs();
   lockCurrentQuestionControls();
-  handleWrongAnswer({ ...q, helpUsed: true, wrongReason: "unfamiliar" });
+  handleWrongAnswer({ ...q, helpUsed: true, wrongReason: "unfamiliar", result: "skipped" });
   const feedback = appViews.practice.querySelector("#answerFeedback");
   if (feedback) {
     feedback.className = "answer-feedback warn";
@@ -2164,6 +2267,7 @@ function handleHelpRequest() {
     id: `r-${Date.now()}`,
     mode: currentPractice.mode,
     exportKind: state.testMode ? "test" : "formal",
+    isTestRecord: Boolean(state.testMode),
     scopeType: currentPractice.scope?.scopeType || q.scopeType || null,
     sourceMode: currentPractice.scope?.sourceMode || q.sourceMode || currentPractice.mode,
     sourceLabel: currentPractice.scope?.sourceLabel || "",
@@ -2189,6 +2293,7 @@ function handleHelpRequest() {
     roundNo: currentPractice.roundNo || q.roundNo || null,
     helpUsed: true,
     enteredWeaknessPool: true,
+    isTestRecord: Boolean(state.testMode),
     practiceFace: q.practiceFace || "",
     attemptIndex: q.attemptIndex || 1,
     gateStatus: q.gateStatus || null,
@@ -2536,17 +2641,17 @@ function packageQuestionToPractice(question, badge, packageKind = "preview") {
   const item = getPackageItem(packageKind, itemId) || {};
   const hasChoices = Array.isArray(question.choices) && question.choices.length > 0;
   const isListening = /listen|听音|听句/.test(`${question.questionType} ${question.prompt}`);
-  const isSpelling = !hasChoices || /spell|fill|reorder|key_expression|默写|补|连词/.test(`${question.questionType} ${question.prompt}`);
+  const requiresKeyboardInput = shouldUsePackageKeyboardInput(question, hasChoices);
   const answer = question.answer || question.targetText || item.en || "";
   return {
-    type: hasChoices ? (isListening ? "listen-choice" : "meaning-choice") : isSpelling ? "spell" : "meaning-choice",
+    type: requiresKeyboardInput ? "spell" : isListening ? "listen-choice" : "meaning-choice",
     title: reviewQuestionTitle(question) || question.prompt || question.questionType,
     badge,
     level: question.difficulty || question.masteryFace || "练习",
-    prompt: isListening && hasChoices ? "听录音，选择正确答案" : question.prompt || question.targetMeaning || item.zh || "",
+    prompt: isListening && hasChoices && !requiresKeyboardInput ? "听录音，选择正确答案" : question.prompt || question.targetMeaning || item.zh || "",
     answer,
     audioText: question.audioText || question.targetText || item.en || answer,
-    choices: hasChoices ? shuffle(uniqueValues(question.choices)) : [],
+    choices: requiresKeyboardInput ? [] : shuffle(uniqueValues(question.choices || [])),
     itemId,
     questionId: question.questionId,
     itemKind: question.itemKind || item.itemKind || "word",
@@ -2566,8 +2671,20 @@ function packageQuestionToPractice(question, badge, packageKind = "preview") {
     attemptIndex: question.attemptIndex || 1,
     sourceMode: question.sourceMode,
     skill: mapQuestionSkill(question),
+    interactionMode: requiresKeyboardInput ? "keyboard-input" : "choice",
+    expectedInputType: question.expectedInputType || (requiresKeyboardInput ? "english" : "choice"),
+    requiresKeyboardInput,
+    keyboardLayout: requiresKeyboardInput ? question.keyboardLayout || "qwerty-english-with-symbols" : "",
     autoPlay: isListening || /listen/.test(question.questionType)
   };
+}
+
+function shouldUsePackageKeyboardInput(question, hasChoices) {
+  const questionType = String(question.questionType || "");
+  if (question.requiresKeyboardInput === true) return true;
+  if (question.requiresKeyboardInput === false || question.interactionMode === "choice") return false;
+  if (hasChoices) return false;
+  return KEYBOARD_INPUT_QUESTION_TYPES.has(questionType);
 }
 
 function getPackageItem(packageKind, itemId) {
@@ -2911,6 +3028,8 @@ function updateItemStats(question, ok) {
   stat.firstSeenAt ||= now;
   stat.lastPracticedAt = now;
   stat.updatedAt = now;
+  stat.exportKind = state.testMode ? "test" : "formal";
+  stat.isTestRecord = Boolean(state.testMode);
   stat.questionTypes[question.type] = (stat.questionTypes[question.type] || 0) + 1;
   const current = stat.skills[question.skill] || { streak: 0, attempts: 0, correct: 0 };
   current.attempts += 1;
@@ -3217,6 +3336,8 @@ function addMistake(question, reason) {
   if (existing) {
     const now = new Date().toISOString();
     existing.times += 1;
+    existing.exportKind = state.testMode ? "test" : existing.exportKind || "formal";
+    existing.isTestRecord = Boolean(state.testMode);
     existing.reason = reason;
     existing.helpUsed = Boolean(existing.helpUsed || question.helpUsed);
     existing.wrongReason = question.wrongReason || reason;
@@ -3260,6 +3381,9 @@ function addMistake(question, reason) {
       reason,
       wrongReason: question.wrongReason || reason,
       helpUsed: Boolean(question.helpUsed),
+      exportKind: state.testMode ? "test" : "formal",
+      isTestRecord: Boolean(state.testMode),
+      result: question.result || "wrong",
       times: 1,
       retestRecords: [],
       correctStreak: 0,
@@ -3496,6 +3620,7 @@ function getTodayRoundRecords(exportDate) {
 
 function buildLearningLogV2(exportedAt, exportDate, records, roundRecords) {
   const reviewRecords = records.filter((record) => record.mode === "warmup");
+  const effectiveReviewRecords = reviewRecords.filter((record) => (record.result || "") !== "skipped");
   const normalizedRoundRecords = roundRecords.map((record) => ({
     roundId: record.roundId || "",
     roundNo: record.roundNo || 0,
@@ -3523,7 +3648,8 @@ function buildLearningLogV2(exportedAt, exportDate, records, roundRecords) {
     timeZone: "Asia/Shanghai",
     exportedAt: toShanghaiIso(exportedAt),
     totalReviewRounds: normalizedRoundRecords.length,
-    totalReviewQuestions: reviewRecords.length,
+    totalReviewQuestions: effectiveReviewRecords.length,
+    totalReviewAnswered: reviewRecords.length,
     hasPreview5A: records.some((record) => String(record.mode || "").startsWith("fiveA") || String(record.mode || "").includes("preview")),
     app: {
       appVersion: APP_VERSION,
@@ -4626,7 +4752,7 @@ function normalizeForAnswer(value, question = {}) {
     .trim()
     .toLowerCase()
     .replace(/[’‘`´＇]/g, "'")
-    .replace(/[—–]/g, "-")
+    .replace(/[—–－]/g, "-")
     .replace(/，/g, ",")
     .replace(/。/g, ".")
     .replace(/？/g, "?")
