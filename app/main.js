@@ -1,5 +1,5 @@
 const APP_VERSION = "1.0.1";
-const APP_BUILD_ID = "20260708-2100";
+const APP_BUILD_ID = "20260708-2119";
 const APP_BASE_URL = new URL("../", import.meta.url);
 const APP_VERSION_MANIFEST_URL = new URL("app-version.json", APP_BASE_URL).href;
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
@@ -130,6 +130,9 @@ const navItems = [...document.querySelectorAll(".nav-item")];
 const pageTitle = document.querySelector("#pageTitle");
 const eyebrow = document.querySelector("#eyebrow");
 const toast = document.querySelector("#toast");
+const appBuildBadge = document.querySelector("#appBuildBadge");
+const appBuildText = document.querySelector("#appBuildText");
+const manualUpdateButton = document.querySelector("#manualUpdateButton");
 
 init();
 
@@ -150,6 +153,7 @@ async function init() {
   setupSpeechVoices();
   renderAll();
   navigate("home");
+  updateAppBuildBadge();
 }
 
 async function checkForAppBuildUpdate() {
@@ -200,6 +204,24 @@ async function refreshAppShellCaches() {
     await Promise.all(keys.filter((key) => key.startsWith("smart-study-")).map((key) => caches.delete(key)));
   } catch {
     // 缓存清理失败不影响继续学习。
+  }
+}
+
+async function manualUpdateApp() {
+  if (manualUpdateButton) manualUpdateButton.disabled = true;
+  showToast("正在检查并更新 APP...");
+  try {
+    await checkForAppBuildUpdate();
+    await refreshAppShellCaches();
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+    showToast("更新完成，正在重新打开");
+    setTimeout(() => window.location.reload(), 500);
+  } catch (error) {
+    showToast(`手动更新失败：${error.message || "请稍后再试"}`);
+    if (manualUpdateButton) manualUpdateButton.disabled = false;
   }
 }
 
@@ -383,6 +405,10 @@ function setupEvents() {
     await deferredInstallPrompt.userChoice;
     deferredInstallPrompt = null;
   });
+
+  if (manualUpdateButton) {
+    manualUpdateButton.addEventListener("click", manualUpdateApp);
+  }
 }
 
 function setupPwa() {
@@ -407,6 +433,7 @@ function renderAll() {
   renderSpeaking();
   renderParent();
   updatePackageMeta();
+  updateAppBuildBadge();
 }
 
 function getVerifiedUnits() {
@@ -1113,6 +1140,7 @@ function navigate(route) {
   navItems.forEach((item) => item.classList.toggle("active", item.dataset.route === target));
   pageTitle.textContent = routes[target]?.title ?? "学习";
   eyebrow.textContent = routes[target]?.eyebrow ?? "智能学习助手";
+  updateAppBuildBadge(target);
 }
 
 function renderHome() {
@@ -1211,7 +1239,6 @@ function renderHome() {
         ${trackCard("即将学习预习", "五年级上册", "单词预习 / 课文听读 / 核心句型 / 听力场景 / 拼写听写 / 单元小测", "preview")}
       </div>
     </section>
-    ${homeVersionBadge()}
   `;
 
   appViews.home.querySelector("[data-action='start-learning']").addEventListener("click", () => {
@@ -1236,12 +1263,18 @@ function renderHome() {
   bindRouteLinks(appViews.home);
 }
 
-function homeVersionBadge() {
+function buildVersionBadgeText() {
   const pack = getPackageVersion(data);
   const packShort = formatPackageVersionShort(pack);
   const latest = state.updateLog?.find((item) => item.updateType === "app") || state.updateLog?.[0];
   const status = latest?.success === false ? "更新待确认" : "已检查";
-  return `<div class="home-version-badge">v${APP_VERSION} · ${APP_BUILD_ID} · pack ${packShort} · ${status}</div>`;
+  return `APP v${APP_VERSION} · ${APP_BUILD_ID} · 包 ${packShort} · ${status}`;
+}
+
+function updateAppBuildBadge(route = state.activeRoute) {
+  if (!appBuildBadge || !appBuildText) return;
+  appBuildText.textContent = buildVersionBadgeText();
+  appBuildBadge.hidden = route !== "home";
 }
 
 function formatPackageVersionShort(version) {
