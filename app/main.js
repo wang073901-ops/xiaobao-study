@@ -1,5 +1,5 @@
 const APP_VERSION = "1.0.1";
-const APP_BUILD_ID = "20260708-2119";
+const APP_BUILD_ID = "20260708-2144";
 const APP_BASE_URL = new URL("../", import.meta.url);
 const APP_VERSION_MANIFEST_URL = new URL("app-version.json", APP_BASE_URL).href;
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
@@ -207,8 +207,11 @@ async function refreshAppShellCaches() {
   }
 }
 
-async function manualUpdateApp() {
-  if (manualUpdateButton) manualUpdateButton.disabled = true;
+async function manualUpdateApp(triggerButton = manualUpdateButton) {
+  const updateButtons = [...new Set([manualUpdateButton, triggerButton].filter(Boolean))];
+  updateButtons.forEach((button) => {
+    button.disabled = true;
+  });
   showToast("正在检查并更新 APP...");
   try {
     await checkForAppBuildUpdate();
@@ -221,7 +224,9 @@ async function manualUpdateApp() {
     setTimeout(() => window.location.reload(), 500);
   } catch (error) {
     showToast(`手动更新失败：${error.message || "请稍后再试"}`);
-    if (manualUpdateButton) manualUpdateButton.disabled = false;
+    updateButtons.forEach((button) => {
+      button.disabled = false;
+    });
   }
 }
 
@@ -407,7 +412,7 @@ function setupEvents() {
   });
 
   if (manualUpdateButton) {
-    manualUpdateButton.addEventListener("click", manualUpdateApp);
+    manualUpdateButton.addEventListener("click", (event) => manualUpdateApp(event.currentTarget));
   }
 }
 
@@ -419,7 +424,8 @@ function setupPwa() {
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker
-      .register(new URL("sw.js", APP_BASE_URL), { scope: APP_BASE_URL.pathname })
+      .register(new URL("sw.js", APP_BASE_URL), { scope: APP_BASE_URL.pathname, updateViaCache: "none" })
+      .then((registration) => registration.update())
       .catch(() => {
         showToast("离线缓存暂未启用");
       });
@@ -1494,8 +1500,7 @@ function renderParent() {
       <section class="panel">
         <h2>平板学习包</h2>
         <div class="report-list">
-          ${reportItem("APP 版本", APP_VERSION, "badge")}
-          ${reportItem("APP 构建", APP_BUILD_ID, "badge")}
+          ${reportActionItem("APP 版本", `v${APP_VERSION} · 构建 ${APP_BUILD_ID}`, "手动更新", "manual-update")}
           ${reportItem("当前学习包", `${data.title} v${data.version}`, "badge blue")}
           ${reportItem("包类型", data.packageKind === "tablet-learning-package" ? "Mini 生成，平板执行" : "本地资料包", "badge blue")}
           ${reportItem("校验状态", isMaterialVerified() ? `${statusText}，只开放已核验内容` : "Mini 资料校对中，学习入口已锁定", isMaterialVerified() ? "badge" : "badge amber")}
@@ -1612,6 +1617,9 @@ function renderParent() {
   appViews.parent.querySelector("[data-action='export']").addEventListener("click", exportRecords);
   appViews.parent.querySelector("[data-action='reset-test-records']").addEventListener("click", resetTestRecords);
   appViews.parent.querySelector("[data-action='clear-cache']").addEventListener("click", clearAppCache);
+  appViews.parent.querySelector("[data-action='manual-update']").addEventListener("click", (event) => {
+    manualUpdateApp(event.currentTarget);
+  });
   appViews.parent.querySelector("[data-action='add-manual-mistake']").addEventListener("click", addManualMistake);
   appViews.parent.querySelector("#packageInput").addEventListener("change", importPackage);
   appViews.parent.querySelector("#studentName").addEventListener("input", (event) => {
@@ -4639,6 +4647,15 @@ function reportItem(label, value, badgeClass, statusLabel) {
     <div class="report-item">
       <span><strong>${label}</strong><br><span class="muted">${value}</span></span>
       <span class="${badgeClass}">${status}</span>
+    </div>
+  `;
+}
+
+function reportActionItem(label, value, buttonText, action) {
+  return `
+    <div class="report-item">
+      <span><strong>${label}</strong><br><span class="muted">${value}</span></span>
+      <button class="secondary-button compact-button" data-action="${action}" type="button">${buttonText}</button>
     </div>
   `;
 }
