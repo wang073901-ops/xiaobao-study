@@ -1,42 +1,42 @@
 {
   "kind": "latest-total-review-package",
-  "generatedAt": "2026-07-07T16:47:52.032Z",
-  "packageFile": "data/learning-packages/xiaobao-english-total-review-pack-2026-07-08-0047.json",
-  "version": "total-review-2026-07-08-0047",
+  "generatedAt": "2026-07-08T12:26:12.988Z",
+  "packageFile": "data/learning-packages/xiaobao-english-total-review-pack-2026-07-08-2026.json",
+  "version": "total-review-2026-07-08-2026",
   "summary": {
-    "items": 2772,
-    "questions": 17675,
+    "items": 2762,
+    "questions": 17600,
     "books": {
       "3A": 455,
       "3B": 570,
-      "4A": 798,
-      "4B": 949
+      "4A": 791,
+      "4B": 946
     },
     "tracks": {
-      "review": 2772
+      "review": 2762
     },
     "itemKinds": {
-      "word": 638,
+      "word": 633,
       "sentence": 1857,
-      "phrase": 248,
+      "phrase": 243,
       "proper-noun": 29
     },
     "questionCategories": {
-      "word": 638,
+      "word": 633,
       "text-dialogue": 1261,
       "sentence": 596,
-      "phrase": 248,
+      "phrase": 243,
       "proper-noun": 29
     },
     "questionTypes": {
-      "listen_choose_word": 638,
-      "en_to_zh": 638,
-      "zh_to_en": 638,
-      "listen_spell_word": 1276,
-      "zh_spell_word": 1276,
-      "context_choose_word": 638,
-      "phonics_shape_confusion_word": 638,
-      "semantic_confusion_word": 638,
+      "listen_choose_word": 633,
+      "en_to_zh": 633,
+      "zh_to_en": 633,
+      "listen_spell_word": 1266,
+      "zh_spell_word": 1266,
+      "context_choose_word": 633,
+      "phonics_shape_confusion_word": 633,
+      "semantic_confusion_word": 633,
       "text_dialogue_listen_read": 1261,
       "text_dialogue_order": 1261,
       "story_detail_choice": 1261,
@@ -47,10 +47,10 @@
       "zh_key_expression": 596,
       "context_choose_sentence": 596,
       "grammar_punctuation_confusion": 596,
-      "phrase_fill_blank": 496,
-      "phrase_in_sentence": 248,
-      "context_choose_phrase": 248,
-      "confusion_phrase": 248,
+      "phrase_fill_blank": 486,
+      "phrase_in_sentence": 243,
+      "context_choose_phrase": 243,
+      "confusion_phrase": 243,
       "listen_choose_proper_noun": 29,
       "proper_noun_en_to_zh": 29,
       "proper_noun_zh_to_en": 29,
@@ -59,19 +59,19 @@
       "confusion_proper_noun": 29
     },
     "difficulties": {
-      "L1": 4523,
-      "L2": 5461,
-      "L3": 4281,
-      "L4": 3410
+      "L1": 4508,
+      "L2": 5431,
+      "L3": 4266,
+      "L4": 3395
     },
     "generationLayers": {
-      "script_template": 12372,
-      "ai_manual_refine": 1768,
-      "rule_enhanced": 3535
+      "script_template": 12320,
+      "ai_manual_refine": 1760,
+      "rule_enhanced": 3520
     },
-    "basicQuestions": 4523,
-    "strengthQuestions": 9742,
-    "confusionQuestions": 3410
+    "basicQuestions": 4508,
+    "strengthQuestions": 9697,
+    "confusionQuestions": 3395
   },
   "rules": {
     "firstRoundMode": "coverage-ledger-by-testKey",

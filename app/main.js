@@ -14,7 +14,7 @@ const SLOW_SPEECH_FACTOR = 0.78;
 const SLOW_SPEECH_MIN_RATE = 0.34;
 const SLOW_SPEECH_MAX_RATE = 0.72;
 const QWERTY_KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map((row) => row.split(""));
-const SPELL_SYMBOL_KEYS = ["'", "-", ".", ",", "?", "!"];
+const SPELL_SYMBOL_KEYS = ["'", "/", "-", ".", ",", "?", "!"];
 const KEYBOARD_INPUT_QUESTION_TYPES = new Set([
   "listen_spell_word",
   "zh_spell_word",
@@ -1984,6 +1984,8 @@ function renderPractice() {
 function questionTemplate(q) {
   const useKeyboardInput = shouldUseKeyboardInput(q);
   const choices = Array.isArray(q.choices) ? q.choices : [];
+  const isFillBlankChoice = FILL_BLANK_CHOICE_QUESTION_TYPES.has(q.questionType);
+  const promptClass = isFillBlankChoice ? "question-word fill-blank-prompt" : "question-word";
 
   if (q.type === "listen-choice" && !useKeyboardInput) {
     scheduleQuestionAudio(q);
@@ -2022,7 +2024,7 @@ function questionTemplate(q) {
       <div>
         <span class="badge blue">${q.level || "理解"}</span>
         <h2 style="margin-top:12px">${q.title || "句义选择"}</h2>
-        <div class="question-word">${q.prompt}</div>
+        <div class="${promptClass}">${formatQuestionPromptHtml(q.prompt)}</div>
         <div class="choice-grid">
           ${choices.map((choice) => `<button class="choice-button" data-answer="${escapeAttr(choice)}">${choice}</button>`).join("")}
         </div>
@@ -2035,6 +2037,7 @@ function questionTemplate(q) {
 function shouldUseKeyboardInput(question = {}) {
   const questionType = String(question.questionType || "");
   const choices = Array.isArray(question.choices) ? question.choices : [];
+  if (isFillBlankChoiceQuestion(question)) return false;
   if (question.requiresKeyboardInput === false || question.interactionMode === "choice") return false;
   if (choices.length && question.requiresKeyboardInput !== true) return false;
   if (question.requiresKeyboardInput === true) return true;
@@ -2699,7 +2702,7 @@ function packageQuestionToPractice(question, badge, packageKind = "preview") {
 
 function shouldUsePackageKeyboardInput(question, hasChoices) {
   const questionType = String(question.questionType || "");
-  if (isFillBlankChoiceQuestion(question) && hasChoices) return false;
+  if (isFillBlankChoiceQuestion(question)) return false;
   if (question.requiresKeyboardInput === true) return true;
   if (question.requiresKeyboardInput === false || question.interactionMode === "choice") return false;
   if (hasChoices) return false;
@@ -4927,5 +4930,9 @@ function normalizeForAnswer(value, question = {}) {
 }
 
 function escapeAttr(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("'", "&#39;").replaceAll("<", "&lt;");
+  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("'", "&#39;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
+function formatQuestionPromptHtml(value) {
+  return escapeAttr(value).replace(/_{3,}/g, '<span class="inline-blank" aria-label="空格"></span>');
 }
