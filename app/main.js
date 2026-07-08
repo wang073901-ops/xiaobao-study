@@ -11,6 +11,8 @@ const DEFAULT_SPEECH_RATE = 0.54;
 const SLOW_SPEECH_FACTOR = 0.8;
 const SLOW_SPEECH_MIN_RATE = 0.36;
 const SLOW_SPEECH_MAX_RATE = 0.62;
+const QWERTY_KEY_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map((row) => row.split(""));
+const SPELL_SYMBOL_KEYS = ["'", "-", ".", ",", "?", "!"];
 const FEMALE_BRITISH_VOICES = /serena|susan|martha|kate|shelley|stephanie|sarah|victoria|emma|amy|ava|samantha|karen|moira|zira|aria|jenny|sonia|libby|maisie|female/i;
 const MALE_VOICES = /daniel|arthur|oliver|george|tom|male/i;
 
@@ -1975,7 +1977,7 @@ function questionTemplate(q) {
           <h2 style="margin-top:12px">${q.title || "看中文写英文"}</h2>
           <p class="question-zh">${q.prompt}</p>
           <div id="spellAnswer" class="letter-answer" data-value="" aria-live="polite"></div>
-          ${letterKeyboardTemplate(allowSpaceForQuestion(q))}
+          ${letterKeyboardTemplate(q)}
           <div class="answer-feedback" id="answerFeedback" aria-live="polite"></div>
         </div>
       </section>
@@ -1997,16 +1999,39 @@ function questionTemplate(q) {
   `;
 }
 
-function letterKeyboardTemplate(allowSpace) {
-  const letters = "abcdefghijklmnopqrstuvwxyz".split("");
+function letterKeyboardTemplate(question) {
+  const allowedKeys = getAllowedKeyboardKeys(question);
+  const keyButton = (key, label = key, extraClass = "") =>
+    `<button class="letter-key ${extraClass}" data-key="${escapeAttr(key)}" type="button" ${allowedKeys.has(key) ? "" : "disabled"}>${label}</button>`;
   return `
     <div class="letter-keyboard" aria-label="APP 内置字母键盘">
-      ${letters.map((letter) => `<button class="letter-key" data-key="${letter}" type="button">${letter}</button>`).join("")}
-      <button class="letter-key utility" data-key="backspace" type="button">删除</button>
-      <button class="letter-key utility" data-key="space" type="button" ${allowSpace ? "" : "disabled"}>空格</button>
-      <button class="letter-key confirm" data-key="confirm" type="button">确认</button>
+      ${QWERTY_KEY_ROWS.map(
+        (row, index) => `
+          <div class="keyboard-row keyboard-row-${index + 1}">
+            ${row.map((letter) => keyButton(letter)).join("")}
+          </div>
+        `
+      ).join("")}
+      <div class="keyboard-row keyboard-symbol-row">
+        ${SPELL_SYMBOL_KEYS.map((key) => keyButton(key, key, "symbol")).join("")}
+      </div>
+      <div class="keyboard-row keyboard-action-row">
+        <button class="letter-key utility" data-key="backspace" type="button">删除</button>
+        ${keyButton("space", "空格", "utility wide")}
+        <button class="letter-key confirm" data-key="confirm" type="button">确认</button>
+      </div>
     </div>
   `;
+}
+
+function getAllowedKeyboardKeys(question) {
+  const keys = new Set("abcdefghijklmnopqrstuvwxyz".split(""));
+  const expected = String(question.answer || question.audioText || "");
+  if (/\s|\.{3}/.test(expected) || question.itemKind === "phrase" || question.itemKind === "sentence") keys.add("space");
+  SPELL_SYMBOL_KEYS.forEach((key) => {
+    if (expected.includes(key) || (key === "'" && /[’‘`´＇]/.test(expected))) keys.add(key);
+  });
+  return keys;
 }
 
 function setupLetterKeyboard() {
@@ -2036,11 +2061,6 @@ function setupLetterKeyboard() {
       answer.textContent = value;
     });
   });
-}
-
-function allowSpaceForQuestion(question) {
-  const expected = String(question.answer || question.audioText || "");
-  return /\s|\.{3}|,|[!?]/.test(expected) || question.itemKind === "phrase" || question.itemKind === "sentence";
 }
 
 function scheduleQuestionAudio(question) {
@@ -2198,13 +2218,13 @@ function handleAnswer(answer, button) {
   currentPractice.answered = true;
   const q = currentPractice.questions[currentPractice.index];
   const timeSpentMs = getCurrentQuestionTimeSpentMs();
-  const normalized = normalize(answer);
-  const expected = normalize(q.answer);
+  const normalized = normalizeForAnswer(answer, q);
+  const expected = normalizeForAnswer(q.answer, q);
   const ok = normalized === expected;
   const buttons = [...appViews.practice.querySelectorAll("[data-answer]")];
   buttons.forEach((choiceButton) => {
     choiceButton.disabled = true;
-    if (normalize(choiceButton.dataset.answer) === expected) choiceButton.classList.add("correct");
+    if (normalizeForAnswer(choiceButton.dataset.answer, q) === expected) choiceButton.classList.add("correct");
   });
   const spellInput = appViews.practice.querySelector("#spellAnswer");
   const spellSubmit = appViews.practice.querySelector("[data-action='submit-spell']");
@@ -4595,6 +4615,23 @@ function normalize(value) {
     .replace(/['"’‘“”`´]/g, "")
     .replace(/[-—–_/\\]/g, " ")
     .replace(/[.,!?;:()[\]{}…·•]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function normalizeForAnswer(value, question = {}) {
+  const expected = String(question.answer || "");
+  const shouldKeepSymbols = question.type === "spell" && /['’‘`´＇.,，!?？！。-]/.test(expected);
+  if (!shouldKeepSymbols) return normalize(value);
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[’‘`´＇]/g, "'")
+    .replace(/[—–]/g, "-")
+    .replace(/，/g, ",")
+    .replace(/。/g, ".")
+    .replace(/？/g, "?")
+    .replace(/！/g, "!")
+    .replace(/…/g, "...")
     .replace(/\s+/g, " ");
 }
 

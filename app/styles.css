@@ -726,11 +726,39 @@ select {
 }
 
 .letter-keyboard {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(42px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   max-width: 620px;
   margin: 0 auto;
+}
+
+.keyboard-row {
+  display: grid;
+  gap: 8px;
+}
+
+.keyboard-row-1 {
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+
+.keyboard-row-2 {
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  padding: 0 5%;
+}
+
+.keyboard-row-3 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 0 14%;
+}
+
+.keyboard-symbol-row {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  padding: 0 18%;
+}
+
+.keyboard-action-row {
+  grid-template-columns: 1.1fr 2fr 1.1fr;
 }
 
 .letter-key {
@@ -745,12 +773,14 @@ select {
 }
 
 .letter-key.utility {
-  grid-column: span 2;
+  text-transform: none;
+}
+
+.letter-key.symbol {
   text-transform: none;
 }
 
 .letter-key.confirm {
-  grid-column: span 3;
   background: var(--green-dark);
   color: #fff;
   text-transform: none;
@@ -964,13 +994,21 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
-  .letter-keyboard {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+  .letter-keyboard,
+  .keyboard-row {
+    gap: 6px;
   }
 
-  .letter-key.utility,
-  .letter-key.confirm {
-    grid-column: span 1;
+  .keyboard-row-1,
+  .keyboard-row-2,
+  .keyboard-row-3,
+  .keyboard-symbol-row {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 0;
+  }
+
+  .keyboard-action-row {
+    grid-template-columns: 1fr;
   }
 
   .question-word {
