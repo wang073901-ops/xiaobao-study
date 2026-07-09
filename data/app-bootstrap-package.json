@@ -1,11 +1,11 @@
 {
-  "id": "xiaobao-english-learning-pack-2026-07-08-2026",
-  "version": "xiaobao-english-learning-pack-2026-07-08-2026",
+  "id": "xiaobao-english-learning-pack-2026-07-09-1620",
+  "version": "xiaobao-english-learning-pack-2026-07-09-1620",
   "title": "小宝英语平板学习包",
   "packageKind": "tablet-learning-package",
   "status": "verified",
   "source": "Mini 端统一资料索引生成；平板只执行已核验学习包",
-  "generatedAt": "2026-07-08T12:26:18.878Z",
+  "generatedAt": "2026-07-09T08:20:24.125Z",
   "generatedBy": {
     "role": "Mini 资料中心",
     "workflow": "资料核验 -> 统一索引 -> 全局学习计划 -> APP 学习包 -> 平板执行 -> 回传学习记录",
@@ -87446,13 +87446,13 @@
     "plannedItemsIncludedInPackage": true,
     "appCodeVersionModified": false
   },
-  "contentHash": "4a631e165a87aaa4cd4a71b03388e2c8f319b5f042dbbb06cd8d614ee961ad1f",
+  "contentHash": "e7d97c24c11f68bd7df679e7747986a88bebea07a90d2d7ff0e8ca0cb67e75ff",
   "totalLearningLibraries": [
     {
       "sourceKey": "review-old-knowledge",
       "manifestFile": "data/learning-packages/latest-total-review-package.json",
-      "packageFile": "data/learning-packages/xiaobao-english-total-review-pack-2026-07-08-2026.json",
-      "version": "total-review-2026-07-08-2026",
+      "packageFile": "data/learning-packages/xiaobao-english-total-review-pack-2026-07-09-1620.json",
+      "version": "total-review-2026-07-09-1620",
       "auditFile": "data/reports/latest-total-review-package-audit.json",
       "auditOk": true,
       "summary": {
@@ -87529,8 +87529,8 @@
     {
       "sourceKey": "preview-5a",
       "manifestFile": "data/learning-packages/latest-total-preview-package.json",
-      "packageFile": "data/learning-packages/xiaobao-english-total-preview-pack-2026-07-08-2026.json",
-      "version": "total-preview-2026-07-08-2026",
+      "packageFile": "data/learning-packages/xiaobao-english-total-preview-pack-2026-07-09-1620.json",
+      "version": "total-preview-2026-07-09-1620",
       "auditFile": "data/reports/latest-total-preview-package-audit.json",
       "auditOk": true,
       "summary": {
@@ -87601,8 +87601,8 @@
     {
       "sourceKey": "strength-5a",
       "manifestFile": "data/learning-packages/latest-total-5a-strength-package.json",
-      "packageFile": "data/learning-packages/xiaobao-english-total-5a-strength-pack-2026-07-08-2026.json",
-      "version": "total-5a-strength-2026-07-08-2026",
+      "packageFile": "data/learning-packages/xiaobao-english-total-5a-strength-pack-2026-07-09-1620.json",
+      "version": "total-5a-strength-2026-07-09-1620",
       "auditFile": "data/reports/latest-total-5a-strength-package-audit.json",
       "auditOk": true,
       "summary": {
@@ -87716,5 +87716,5 @@
     "appCodeVersionModified": false
   },
   "bootstrapOnly": true,
-  "bootstrapGeneratedAt": "2026-07-09T07:19:05.545Z"
+  "bootstrapGeneratedAt": "2026-07-09T08:20:24.831Z"
 }
