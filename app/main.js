@@ -1,8 +1,9 @@
 const APP_VERSION = "1.0.1";
-const APP_BUILD_ID = "20260708-2223";
+const APP_BUILD_ID = "20260709-1512";
 const APP_BASE_URL = new URL("../", import.meta.url);
 const APP_VERSION_MANIFEST_URL = new URL("app-version.json", APP_BASE_URL).href;
 const PACKAGE_URL = new URL("data/english-5a-demo.json", APP_BASE_URL).href;
+const BOOTSTRAP_PACKAGE_URL = new URL("data/app-bootstrap-package.json", APP_BASE_URL).href;
 const LATEST_PACKAGE_URL = new URL("data/latest-learning-package.json", APP_BASE_URL).href;
 const TOTAL_REVIEW_MANIFEST_URL = new URL("data/learning-packages/latest-total-review-package.json", APP_BASE_URL).href;
 const TOTAL_PREVIEW_MANIFEST_URL = new URL("data/learning-packages/latest-total-preview-package.json", APP_BASE_URL).href;
@@ -115,6 +116,9 @@ let totalPackages = {
   preview: null,
   strength: null
 };
+let totalPackagesLoading = false;
+let totalPackagesReady = false;
+let fullLearningPackageLoading = null;
 
 const appViews = {
   home: document.querySelector("#view-home"),
@@ -139,7 +143,6 @@ init();
 async function init() {
   await checkForAppBuildUpdate();
   data = await loadLearningPackage();
-  await loadTotalLearningPackages();
   ensureTestModeReset();
   syncReviewResumeWithCurrentPackage();
   const firstVerifiedUnit = getFirstVerifiedUnit();
@@ -154,6 +157,7 @@ async function init() {
   renderAll();
   navigate("home");
   updateAppBuildBadge();
+  loadTotalLearningPackagesInBackground();
 }
 
 async function checkForAppBuildUpdate() {
@@ -221,7 +225,7 @@ async function manualUpdateApp(triggerButton = manualUpdateButton) {
       await Promise.all(registrations.map((registration) => registration.unregister()));
     }
     showToast("更新完成，正在重新打开");
-    setTimeout(() => window.location.reload(), 500);
+    setTimeout(() => window.location.replace(`./?manual-update=${Date.now()}`), 500);
   } catch (error) {
     showToast(`手动更新失败：${error.message || "请稍后再试"}`);
     updateButtons.forEach((button) => {
@@ -265,19 +269,57 @@ function ensureTestModeReset() {
 }
 
 async function loadLearningPackage() {
-  const bundledPackage = await fetchJson(PACKAGE_URL);
+  const bootstrapPackage = await fetchJson(BOOTSTRAP_PACKAGE_URL).catch(() => fetchJson(PACKAGE_URL));
   const cachedPackage = validateLearningPackage(state.cachedLearningPackage).ok ? state.cachedLearningPackage : null;
-  let activePackage = cachedPackage || bundledPackage;
+  let activePackage = cachedPackage || bootstrapPackage;
 
   syncActivePackageMeta(activePackage);
 
-  const updateResult = await checkForLearningPackageUpdate(activePackage);
-  if (updateResult.package) {
-    activePackage = updateResult.package;
-    syncActivePackageMeta(activePackage);
-  }
+  checkForLearningPackageUpdate(activePackage).then((updateResult) => {
+    if (!updateResult.package) return;
+    data = updateResult.package;
+    syncActivePackageMeta(data);
+    renderAll();
+    navigate(state.activeRoute);
+  });
   saveState();
   return activePackage;
+}
+
+function isFullLearningPackageLoaded() {
+  return !data?.bootstrapOnly && Boolean(data?.studyPackage?.totalLibraryTasks || data?.scopedCatalog?.questions?.length);
+}
+
+async function ensureFullLearningPackage() {
+  if (isFullLearningPackageLoaded()) return data;
+  if (fullLearningPackageLoading) return fullLearningPackageLoading;
+  showToast("正在准备题库...");
+  fullLearningPackageLoading = (async () => {
+    const manifest = await fetchJson(LATEST_PACKAGE_URL, { cache: "no-store" });
+    const manifestValidation = validateLatestManifest(manifest);
+    if (!manifestValidation.ok) throw new Error(manifestValidation.reason);
+    const latest = manifestValidation.normalized;
+    const fullPackage = await fetchJson(new URL(latest.packageUrl, APP_BASE_URL).href, { cache: "no-store" });
+    const packageValidation = await validateDownloadedPackage(fullPackage, latest);
+    if (!packageValidation.ok) throw new Error(packageValidation.reason);
+    data = fullPackage;
+    state.cachedLearningPackage = null;
+    state.learningPackageVersion = latest.learningPackageVersion;
+    state.contentHash = latest.contentHash;
+    syncActivePackageMeta(data);
+    saveState();
+    renderAll();
+    navigate(state.activeRoute);
+    return data;
+  })()
+    .catch((error) => {
+      showToast(`题库准备失败：${error.message || "网络不可用"}`);
+      throw error;
+    })
+    .finally(() => {
+      fullLearningPackageLoading = null;
+    });
+  return fullLearningPackageLoading;
 }
 
 async function checkForLearningPackageUpdate(localPackage) {
@@ -300,6 +342,19 @@ async function checkForLearningPackageUpdate(localPackage) {
     }
     const latest = manifestValidation.normalized;
 
+    if (localPackage?.bootstrapOnly && latest.learningPackageVersion === localVersion) {
+      state.contentHash = latest.contentHash;
+      appendUpdateLog({
+        checkedAt,
+        onlineVersion: latest.learningPackageVersion,
+        localVersion,
+        success: true,
+        reason: "启动包已是最新，完整题库按需加载"
+      });
+      saveState();
+      return { package: null };
+    }
+
     if (latest.learningPackageVersion === localVersion && hashesEqual(latest.contentHash, localHash)) {
       appendUpdateLog({
         checkedAt,
@@ -311,7 +366,7 @@ async function checkForLearningPackageUpdate(localPackage) {
       return { package: null };
     }
 
-    const nextPackage = await fetchJson(new URL(latest.packageUrl, LATEST_PACKAGE_URL).href, { cache: "no-store" });
+    const nextPackage = await fetchJson(new URL(latest.packageUrl, APP_BASE_URL).href, { cache: "no-store" });
     const packageValidation = await validateDownloadedPackage(nextPackage, latest);
     if (!packageValidation.ok) {
       appendUpdateLog({
@@ -324,7 +379,7 @@ async function checkForLearningPackageUpdate(localPackage) {
       return { package: null };
     }
 
-    state.cachedLearningPackage = nextPackage;
+    state.cachedLearningPackage = null;
     state.learningPackageVersion = latest.learningPackageVersion;
     state.contentHash = latest.contentHash;
     appendUpdateLog({
@@ -373,6 +428,31 @@ async function loadTotalLearningPackages() {
   });
 }
 
+function loadTotalLearningPackagesInBackground() {
+  if (totalPackagesLoading || totalPackagesReady) return;
+  totalPackagesLoading = true;
+  loadTotalLearningPackages()
+    .then(() => {
+      totalPackagesReady = true;
+      syncReviewResumeWithCurrentPackage();
+      renderAll();
+      navigate(state.activeRoute);
+    })
+    .catch((error) => {
+      appendUpdateLog({
+        checkedAt: new Date().toISOString(),
+        onlineVersion: "total-packages",
+        localVersion: getPackageVersion(data),
+        success: false,
+        reason: `总题库后台加载失败：${error.message || "网络不可用"}`
+      });
+      saveState();
+    })
+    .finally(() => {
+      totalPackagesLoading = false;
+    });
+}
+
 async function loadTotalLearningPackage(kind, manifestUrl) {
   const manifest = await fetchJson(manifestUrl, { cache: "no-store" });
   const packageUrl = new URL(manifest.packageFile || manifest.file, APP_BASE_URL).href;
@@ -381,6 +461,28 @@ async function loadTotalLearningPackage(kind, manifestUrl) {
     manifest,
     package: packageData
   };
+}
+
+async function ensureTotalPackagesReadyFor(kind = "all") {
+  const requiredKinds =
+    kind === "today" ? ["review", getFiveAStage() === "reinforcement" ? "strength" : "preview"] : kind === "all" ? ["review", "preview", "strength"] : [kind];
+  const missingKinds = requiredKinds.filter((item) => !totalPackages[item]?.package);
+  if (!missingKinds.length) return totalPackages;
+  showToast("正在准备对应题库...");
+  await Promise.all(
+    missingKinds.map((item) => {
+      const manifestUrl = {
+        review: TOTAL_REVIEW_MANIFEST_URL,
+        preview: TOTAL_PREVIEW_MANIFEST_URL,
+        strength: TOTAL_STRENGTH_MANIFEST_URL
+      }[item];
+      return manifestUrl ? loadTotalLearningPackage(item, manifestUrl) : Promise.resolve();
+    })
+  );
+  totalPackagesReady = Boolean(totalPackages.review?.package && totalPackages.preview?.package && totalPackages.strength?.package);
+  renderAll();
+  navigate(state.activeRoute);
+  return totalPackages;
 }
 
 function syncActivePackageMeta(packageData) {
@@ -1647,7 +1749,14 @@ function renderParent() {
   });
 }
 
-function startTodayLearning() {
+async function startTodayLearning() {
+  try {
+    await ensureTotalPackagesReadyFor("today");
+    await ensureFullLearningPackage();
+  } catch {
+    navigate("home");
+    return;
+  }
   const hasWeakness = getActiveMistakes().length > 0;
   if (getFiveAStage() === "reinforcement") {
     if (!isFiveAReinforcementAllowed()) {
@@ -1665,7 +1774,13 @@ function startTodayLearning() {
   startPractice("warmup", { nextAfter: hasWeakness ? "weakness-only" : "" });
 }
 
-function startFiveAPreviewLesson() {
+async function startFiveAPreviewLesson() {
+  try {
+    await ensureTotalPackagesReadyFor("preview");
+  } catch {
+    navigate("home");
+    return;
+  }
   const chunk = getCurrentPreviewChunk();
   if (!chunk) {
     showToast("五上预习题库还在准备中");
@@ -1685,7 +1800,13 @@ function startFiveAPreviewLesson() {
   renderLesson();
 }
 
-function startLesson(unitId) {
+async function startLesson(unitId) {
+  try {
+    await ensureFullLearningPackage();
+  } catch {
+    navigate("english");
+    return;
+  }
   if (!isUnitVerified(unitId)) {
     showToast("这个单元还没核验完成，暂不进入学习");
     navigate("english");
@@ -1703,7 +1824,14 @@ function startLesson(unitId) {
   renderLesson();
 }
 
-function startScopedPractice(scopeId) {
+async function startScopedPractice(scopeId) {
+  try {
+    await ensureFullLearningPackage();
+    await ensureTotalPackagesReadyFor("review");
+  } catch {
+    navigate("english");
+    return;
+  }
   const scope = getScopeById(scopeId);
   if (!scope) {
     showToast("这个学习范围还没准备好");
@@ -1960,7 +2088,24 @@ async function playLessonStep(step) {
   await speakLessonList(step.items.map((item) => item.en));
 }
 
-function startPractice(mode, options = {}) {
+async function startPractice(mode, options = {}) {
+  try {
+    if (["warmup", "review-total", "scope-review", "self-review"].includes(mode)) {
+      await ensureTotalPackagesReadyFor("review");
+    }
+    if (["fiveA-preview-light", "fiveA-preview-quiz"].includes(mode)) {
+      await ensureTotalPackagesReadyFor("preview");
+    }
+    if (mode === "fiveA-strength") {
+      await ensureTotalPackagesReadyFor("strength");
+    }
+    if (!["mistakes", "fiveA-preview-light", "fiveA-preview-quiz", "fiveA-strength"].includes(mode)) {
+      await ensureFullLearningPackage();
+    }
+  } catch {
+    navigate("english");
+    return;
+  }
   if (!isMaterialVerified()) {
     showToast("资料还在校对中，暂不进入练习");
     navigate("english");
@@ -4800,7 +4945,11 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const persistedState = {
+    ...state,
+    cachedLearningPackage: null
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(persistedState));
 }
 
 function shuffle(items) {
@@ -4874,7 +5023,7 @@ function validateLearningPackage(packageData) {
   if (packageData.packageKind !== "tablet-learning-package") return { ok: false, reason: "学习包类型错误" };
   if (!Array.isArray(packageData.units)) return { ok: false, reason: "学习包 units 不是数组" };
   const schema = String(packageData.schemaVersion || "");
-  const supportedSchema = !schema || schema.startsWith("1.") || schema === "xiaobao-learning-package-v1";
+  const supportedSchema = !schema || schema.startsWith("1.") || schema === "xiaobao-learning-package-v1" || schema === "xiaobao-learning-package-v2";
   if (!supportedSchema) {
     return { ok: false, reason: `不支持的学习包 schemaVersion：${packageData.schemaVersion}` };
   }

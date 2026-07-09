@@ -1,4 +1,4 @@
-const SW_RESET_VERSION = "20260708-2223";
+const SW_RESET_VERSION = "20260709-1512";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -23,7 +23,6 @@ async function resetServiceWorker() {
   await Promise.all(
     windowClients.map((client) => {
       const url = new URL(client.url);
-      if (!url.pathname.startsWith("/xiaobao-study/")) return Promise.resolve();
       if (url.searchParams.get("sw-cleared") === SW_RESET_VERSION) return Promise.resolve();
       url.searchParams.set("sw-cleared", SW_RESET_VERSION);
       return client.navigate(url.href);
